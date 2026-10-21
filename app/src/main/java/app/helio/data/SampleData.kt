@@ -55,6 +55,14 @@ object SampleData {
             activities = listOf(
                 Activity(names[s % names.size], (strain * 0.7 * 10).toInt() / 10.0, actStart, actStart.plusMinutes(actLen)),
             ),
+            steps = (7200 + 2600 * sin(s * 0.7)).toInt(),
+            moderateMin = (28 + 18 * sin(s * 1.1)).toInt().coerceAtLeast(0),
+            vigorousMin = (8 + 8 * sin(s * 0.9 + 1)).toInt().coerceAtLeast(0),
+            strengthMin = if (names[s % names.size] == "Strength") actLen.toInt() else 0,
+            maxHr = (168 + 12 * sin(s * 0.9 + 1)).toInt(),
+            runs = if (names[s % names.size] == "Running") listOf(
+                RunEffort(actLen.toDouble(), 2.85 + 0.12 * sin(s * 2.1) + (35 - seed) * 0.004, 148 + 5 * sin(s * 1.3)),
+            ) else emptyList(),
         )
     }
 }

@@ -37,6 +37,7 @@ import app.helio.data.Repository
 import app.helio.ui.screens.FoldMode
 import app.helio.ui.screens.HomeScreen
 import app.helio.ui.screens.LiveScreen
+import app.helio.ui.screens.ProfileDialog
 import app.helio.ui.theme.HelioTheme
 import kotlinx.coroutines.launch
 
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
                 hingeTopPx.value = if (half) fold!!.bounds.top else null
             }
         }
+        Repository.loadProfile(this)
         lifecycleScope.launch { Repository.refresh(this@MainActivity) }
         if (LiveHeartRateService.rememberedDevice(this) != null && LiveHeartRateService.hasPermissions(this)) {
             LiveHeartRateService.start(this)
@@ -72,7 +74,14 @@ class MainActivity : ComponentActivity() {
         val days by Repository.days.collectAsState()
         val live by Repository.live.collectAsState()
         val source by Repository.source.collectAsState()
+        val profile by Repository.profile.collectAsState()
         val scope = rememberCoroutineScope()
+        var editProfile by remember { mutableStateOf(false) }
+        if (editProfile) ProfileDialog(profile, onSave = {
+            Repository.saveProfile(this@MainActivity, it)
+            editProfile = false
+            scope.launch { Repository.refresh(this@MainActivity) }
+        }, onDismiss = { editProfile = false })
         var selected by remember { mutableIntStateOf(-1) }
         if (selected !in days.indices) selected = days.lastIndex
         var forceLive by remember { mutableStateOf(false) }
@@ -134,6 +143,8 @@ class MainActivity : ComponentActivity() {
                 live = live,
                 source = source,
                 fold = fold,
+                profile = profile,
+                onEditProfile = { editProfile = true },
                 onOpenLive = { forceLive = true },
                 liveContent = liveContent,
             )

@@ -9,7 +9,10 @@ import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RespiratoryRateRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
+import androidx.health.connect.client.records.SkinTemperatureRecord
 import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import app.helio.logic.Strain
@@ -40,6 +43,9 @@ class HealthConnectSource(private val ctx: Context) {
             HealthPermission.getReadPermission(SleepSessionRecord::class),
             HealthPermission.getReadPermission(ExerciseSessionRecord::class),
             HealthPermission.getReadPermission(RespiratoryRateRecord::class),
+            HealthPermission.getReadPermission(StepsRecord::class),
+            HealthPermission.getReadPermission(DistanceRecord::class),
+            HealthPermission.getReadPermission(SkinTemperatureRecord::class),
             "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND",
             "android.permission.health.READ_HEALTH_DATA_HISTORY",
         )
@@ -78,7 +84,7 @@ class HealthConnectSource(private val ctx: Context) {
     private suspend fun <T : Record> readSafe(type: KClass<T>, start: Instant, end: Instant): List<T> =
         try { readAll(type, start, end) } catch (e: Exception) { emptyList() }
 
-    suspend fun loadDays(count: Int = 35): List<DaySummary> {
+    suspend fun loadDays(count: Int = 35, hrMax: Double = 185.0): List<DaySummary> {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
         val first = today.minusDays((count - 1).toLong())
@@ -101,6 +107,13 @@ class HealthConnectSource(private val ctx: Context) {
             .groupBy { it.endTime.atZone(zone).toLocalDate() }
             .mapValues { (_, v) -> v.maxBy { Duration.between(it.startTime, it.endTime).toMinutes() } }
         val exercises = readSafe(ExerciseSessionRecord::class, start, end)
+        val stepsByDay = readSafe(StepsRecord::class, start, end)
+            .groupBy { it.startTime.atZone(zone).toLocalDate() }
+            .mapValues { (_, v) -> v.sumOf { it.count }.toInt() }
+        val distances = readSafe(DistanceRecord::class, start, end)
+        val skinTemp = readSafe(SkinTemperatureRecord::class, start, end)
+            .groupBy { it.endTime.atZone(zone).toLocalDate() }
+            .mapValues { (_, v) -> v.flatMap { r -> r.deltas.map { d -> d.delta.inCelsius } }.takeIf { it.isNotEmpty() }?.average() }
 
         data class Raw(val date: LocalDate, val day: DaySummary, val hrv: Double?, val rhr: Double?, val sleepPerf: Int?)
 
@@ -166,6 +179,25 @@ class HealthConnectSource(private val ctx: Context) {
                     )
                 }
 
+            // Minutes per zone from per-minute heart rate
+            val perMinute = dayHr.groupBy { it.first / 60_000 }.mapValues { (_, v) -> v.map { it.second }.average() }
+            val moderate = perMinute.values.count { it >= 0.6 * hrMax && it < 0.8 * hrMax }
+            val vigorous = perMinute.values.count { it >= 0.8 * hrMax }
+            val dayMax = perMinute.values.sortedDescending().getOrNull(1)?.toInt()
+            val strengthMin = exercises.filter {
+                it.startTime.atZone(zone).toLocalDate() == date && it.exerciseType == ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING
+            }.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }.toInt()
+            val runs = exercises.filter {
+                it.startTime.atZone(zone).toLocalDate() == date && it.exerciseType == ExerciseSessionRecord.EXERCISE_TYPE_RUNNING
+            }.mapNotNull { e ->
+                val mins = Duration.between(e.startTime, e.endTime).toSeconds() / 60.0
+                val meters = distances.filter { !it.startTime.isBefore(e.startTime) && !it.endTime.isAfter(e.endTime) }
+                    .sumOf { it.distance.inMeters }
+                val w = slice(hr, e.startTime.toEpochMilli(), e.endTime.toEpochMilli())
+                if (mins < 12 || meters < 1000 || w.size < 10) null
+                else RunEffort(mins, meters / (mins * 60), w.drop(w.size / 6).map { it.second }.average())
+            }
+
             val day = DaySummary(
                 date = date,
                 recovery = null,
@@ -176,7 +208,7 @@ class HealthConnectSource(private val ctx: Context) {
                 sleepPerformance = sleepPerf,
                 sleep = sleepInfo,
                 respRate = resp[date],
-                skinTempDelta = null,
+                skinTempDelta = skinTemp[date],
                 stressNow = series.lastOrNull()?.v,
                 stressUpdated = lastHrTime?.let { Instant.ofEpochMilli(it).atZone(zone).toLocalTime() },
                 stressSeries = series,
@@ -185,6 +217,12 @@ class HealthConnectSource(private val ctx: Context) {
                 sleepBand = sleep?.let { Band(frac(it.startTime), frac(it.endTime)) },
                 workoutBands = dayExercises.map { Band(frac(it.startTime), frac(it.endTime)) },
                 activities = activities,
+                steps = stepsByDay[date],
+                moderateMin = if (perMinute.size > 120) moderate else null,
+                vigorousMin = if (perMinute.size > 120) vigorous else null,
+                strengthMin = strengthMin,
+                maxHr = dayMax,
+                runs = runs,
             )
             Raw(date, day, hrv[date], rest, sleepPerf)
         }

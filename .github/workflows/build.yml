@@ -29,7 +29,23 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug 2>&1 | tee build.log
+
+      - name: Save error log to the ci-log branch (so it can be read without GitHub login)
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "^e: |error:|FAILURE|What went wrong" -A3 build.log | head -200 > errors.txt || true
+          tail -80 build.log >> errors.txt
+          git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan ci-log
+          git rm -rf --cached . > /dev/null
+          git add -f errors.txt
+          git commit -m "Build ${{ github.run_number }} failed"
+          git push -f origin ci-log
 
       - name: Rename APK
         run: |

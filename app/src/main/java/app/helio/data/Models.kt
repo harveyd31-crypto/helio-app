@@ -42,7 +42,35 @@ data class DaySummary(
     val sleepBand: Band?,
     val workoutBands: List<Band>,
     val activities: List<Activity>,
+    val steps: Int? = null,
+    /** Minutes at 60–80 % of max HR (moderate) and above 80 % (vigorous). */
+    val moderateMin: Int? = null,
+    val vigorousMin: Int? = null,
+    val strengthMin: Int? = null,
+    /** Highest heart rate of the day (second-highest minute, to ignore spikes). */
+    val maxHr: Int? = null,
+    val runs: List<RunEffort> = emptyList(),
 )
+
+/** A steady run: enough to place one point on your heart-rate-vs-speed line. */
+data class RunEffort(
+    val minutes: Double,
+    val speedMps: Double,
+    val avgHr: Double,
+    val gradePct: Double = 0.0,
+    /** True for a guided test run recorded by the app (weighted more). */
+    val test: Boolean = false,
+)
+
+data class Profile(
+    val birthYear: Int? = null,
+    val male: Boolean? = null,
+    val heightCm: Int? = null,
+    val weightKg: Double? = null,
+) {
+    val age: Int? get() = birthYear?.let { LocalDate.now().year - it }
+    val complete: Boolean get() = birthYear != null && male != null
+}
 
 data class WeekGoal(
     val goal: Double,
