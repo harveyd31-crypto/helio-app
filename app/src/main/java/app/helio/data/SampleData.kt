@@ -43,10 +43,31 @@ object SampleData {
         )
     }
 
-    private val names = listOf("Running", "Cycling", "Walking", "Strength", "Tennis")
+    private val names = listOf("Muay Thai", "Run", "Tennis", "Cross", "Run")
 
     fun days(today: LocalDate = LocalDate.now(), count: Int = 35): List<DaySummary> =
         (count - 1 downTo 0).map { back -> day(today.minusDays(back.toLong()), back) }
+
+    /** An activity with a believable heart-rate trace: warm-up, work with rounds/rallies, cool-down. */
+    private fun sampleActivity(date: LocalDate, name: String, start: LocalTime, minutes: Long, s: Int): Activity {
+        val zone = java.time.ZoneId.systemDefault()
+        val t0 = date.atTime(start).atZone(zone).toInstant().toEpochMilli()
+        val n = (minutes * 12).toInt()
+        val (base, swing, period) = when (name) {
+            "Muay Thai" -> Triple(150.0, 16.0, 36.0)   // 3-min rounds, 1-min rest
+            "Tennis" -> Triple(138.0, 12.0, 14.0)
+            "Cross" -> Triple(152.0, 14.0, 20.0)
+            else -> Triple(148.0, 4.0, 60.0)
+        }
+        val hr = (0..n).map { k ->
+            val warm = (k / 60.0).coerceAtMost(1.0)
+            val cool = ((n - k) / 36.0).coerceAtMost(1.0)
+            val v = 95 + (base - 95) * warm * cool + swing * sin(k * 2 * Math.PI / period) * warm * cool + ((k * 37 + s) % 11) - 5
+            (t0 + k * 5000L) to v.toInt()
+        }
+        val strain = Strain.fromHeartRate(hr, 56.0, 188.0)
+        return Activity(name, (strain * 10).toInt() / 10.0, start, start.plusMinutes(minutes), t0, t0 + n * 5000L, hr)
+    }
 
     private fun day(date: LocalDate, seed: Int): DaySummary {
         val s = seed + 3
@@ -89,14 +110,14 @@ object SampleData {
             sleepBand = Band(0f, sleepEnd),
             workoutBands = listOf(Band(woStart.toFloat(), woEnd.toFloat().coerceAtMost(1f))),
             activities = listOf(
-                Activity(names[s % names.size], (strain * 0.7 * 10).toInt() / 10.0, actStart, actStart.plusMinutes(actLen)),
+                sampleActivity(date, names[s % names.size], actStart, actLen, s),
             ),
             steps = (7200 + 2600 * sin(s * 0.7)).toInt(),
             moderateMin = (28 + 18 * sin(s * 1.1)).toInt().coerceAtLeast(0),
             vigorousMin = (8 + 8 * sin(s * 0.9 + 1)).toInt().coerceAtLeast(0),
-            strengthMin = if (names[s % names.size] == "Strength") actLen.toInt() else 0,
+            strengthMin = if (names[s % names.size] == "Cross") actLen.toInt() else 0,
             maxHr = (168 + 12 * sin(s * 0.9 + 1)).toInt(),
-            runs = if (names[s % names.size] == "Running") listOf(
+            runs = if (names[s % names.size] == "Run") listOf(
                 RunEffort(actLen.toDouble(), 2.85 + 0.12 * sin(s * 2.1) + (35 - seed) * 0.004, 148 + 5 * sin(s * 1.3)),
             ) else emptyList(),
         )

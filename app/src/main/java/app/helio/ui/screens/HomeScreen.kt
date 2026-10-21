@@ -58,6 +58,7 @@ import app.helio.data.DaySummary
 import app.helio.data.LiveState
 import app.helio.data.Profile
 import app.helio.data.WeekGoal
+import app.helio.data.toWorkout
 import app.helio.logic.BodyAge
 import app.helio.logic.Vo2Max
 import app.helio.logic.WeeklyGoal
@@ -137,12 +138,13 @@ fun HomeScreen(
     if (testState.running && detail != Detail.Test) detail = Detail.Test
     if (activeWorkout != null && detail != Detail.Recording) detail = Detail.Recording
     var openWorkout by remember { mutableStateOf<app.helio.data.Workout?>(null) }
-    val sampleWorkout = remember { app.helio.data.Workouts.sample() }
-    val allWorkouts = if (sample) workouts + sampleWorkout else workouts
+    val allWorkouts = remember(days, workouts) {
+        workouts + days.flatMap { d -> d.activities.filter { it.hr.size > 10 }.map { a -> a.toWorkout() } }
+    }
     val rest = (day.restingHr ?: 60).toDouble()
     fun statsOf(w: app.helio.data.Workout) = app.helio.data.WorkoutMath.stats(w, vo2.hrMax, rest, profile)
     val zone = java.time.ZoneId.systemDefault()
-    val dayWorkouts = allWorkouts.filter { java.time.Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() == day.date }
+    val dayWorkouts = workouts.filter { java.time.Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() == day.date }
         .map { it to statsOf(it) }
     BackHandler(enabled = detail != null && !testState.running) { detail = null }
 
@@ -213,7 +215,7 @@ fun HomeScreen(
                                     onOpenWorkout = { openWorkout = it; detail = Detail.Workout }) { detail = it }
                                 1 -> app.helio.ui.components.SleepDetail(days, selected, null)
                                 2 -> RecoveryTab(day)
-                                3 -> StrainTab(day, goal)
+                                3 -> StrainDetailTab(days, selected, goal, dayWorkouts, vo2.hrMax) { openWorkout = it; detail = Detail.Workout }
                             }
                         }
                     }
@@ -280,7 +282,7 @@ private fun OverviewList(
     onDetail: (Detail) -> Unit,
 ) {
     WeeklyGoalCard(goal)
-    day.activities.forEach { ActivityRow(it) }
+    day.activities.forEach { a -> ActivityRow(a) { if (a.hr.size > 10) onOpenWorkout(a.toWorkout()) } }
     val zone = java.time.ZoneId.systemDefault()
     dayWorkouts.forEach { (w, st) ->
         ActivityRow(
@@ -354,11 +356,79 @@ private fun RecoveryTab(day: DaySummary) {
 }
 
 @Composable
-private fun StrainTab(day: DaySummary, goal: WeekGoal) {
-    WeeklyGoalCard(goal)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StatTile(day.strain?.let { String.format("%.1f", it) } ?: "—", "Day strain", Modifier.weight(1f), HelioColors.Strain)
-        StatTile(day.strainTarget?.let { String.format("%.1f", it) } ?: "—", "Target", Modifier.weight(1f))
+private fun StrainDetailTab(
+    days: List<DaySummary>, selected: Int, goal: WeekGoal,
+    dayWorkouts: List<Pair<app.helio.data.Workout, app.helio.data.WorkoutStats>>, hrMax: Double,
+    onOpen: (app.helio.data.Workout) -> Unit,
+) {
+    val day = days[selected]
+    val strain = day.strain ?: 0.0
+    val target = day.strainTarget
+    Column(Modifier.fillMaxWidth().card().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("DAY STRAIN", style = cap(11.sp, Color.White))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(String.format("%.1f", strain), style = num(48.sp, androidx.compose.ui.text.font.FontWeight.Bold, HelioColors.Strain))
+            Text(target?.let { String.format("  target %.1f", it) } ?: "", style = body(14.sp, HelioColors.TextMuted), modifier = Modifier.padding(bottom = 9.dp))
+        }
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(14.dp)) {
+            val h = size.height
+            drawRoundRect(HelioColors.Track, cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2))
+            drawRoundRect(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(HelioColors.StrainDeep, HelioColors.StrainLight)),
+                size = androidx.compose.ui.geometry.Size((strain / 21.0).toFloat().coerceIn(0f, 1f) * size.width, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2),
+            )
+            target?.let { val x = (it / 21.0).toFloat() * size.width; drawLine(Color.White, androidx.compose.ui.geometry.Offset(x, -4f), androidx.compose.ui.geometry.Offset(x, h + 4f), 3f) }
+        }
+        Text(
+            when {
+                target == null -> "Strain is 0–21, from time spent at raised heart rate."
+                strain < target - 2 -> String.format("%.1f below today's target: room for a session.", target - strain)
+                strain > target + 2 -> String.format("%.1f above today's target: prioritise recovery tonight.", strain - target)
+                else -> "On target for today's recovery."
+            },
+            style = body(12.sp, HelioColors.TextMuted),
+        )
     }
-    day.activities.forEach { ActivityRow(it) }
+
+    Text("ACTIVITIES", style = cap(11.sp, Color.White))
+    val items = day.activities.map { it to (if (it.hr.size > 10) it.toWorkout() else null) } +
+        dayWorkouts.map { (w, st) ->
+            val z = java.time.ZoneId.systemDefault()
+            app.helio.data.Activity(w.type.label, (st.strain * 10).toInt() / 10.0,
+                java.time.Instant.ofEpochMilli(w.start).atZone(z).toLocalTime(), java.time.Instant.ofEpochMilli(w.end).atZone(z).toLocalTime()) to w
+        }
+    if (items.isEmpty()) Text("No activities this day.", style = body(13.sp, HelioColors.TextMuted))
+    items.forEach { (a, w) -> ActivityRow(a) { w?.let(onOpen) } }
+
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatTile(day.moderateMin?.let { "$it min" } ?: "—", "Moderate 60–80%", Modifier.weight(1f))
+        StatTile(day.vigorousMin?.let { "$it min" } ?: "—", "Vigorous 80%+", Modifier.weight(1f))
+        StatTile(day.maxHr?.toString() ?: "—", "Max HR", Modifier.weight(1f))
+    }
+
+    Column(Modifier.fillMaxWidth().card().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("LAST 7 DAYS · STRAIN VS TARGET", style = cap(11.sp, Color.White))
+        val from = (selected - 6).coerceAtLeast(0)
+        val week = days.subList(from, selected + 1)
+        Row(Modifier.fillMaxWidth().height(130.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+            week.forEachIndexed { i, d ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(d.strain?.let { String.format("%.1f", it) } ?: "", style = num(11.sp, androidx.compose.ui.text.font.FontWeight.SemiBold, HelioColors.Strain))
+                    androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().height(96.dp)) {
+                        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                            val hBar = ((d.strain ?: 0.0) / 21.0).toFloat() * size.height
+                            drawRoundRect(if (i == week.lastIndex) HelioColors.StrainLight else HelioColors.StrainBadge,
+                                androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height - hBar), androidx.compose.ui.geometry.Size(size.width * 0.6f, hBar),
+                                androidx.compose.ui.geometry.CornerRadius(5f))
+                            d.strainTarget?.let { t -> val y = size.height - (t / 21.0).toFloat() * size.height; drawLine(Color.White, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 2.5f) }
+                        }
+                    }
+                    Text(d.date.dayOfWeek.name.take(1), style = cap(10.sp, if (i == week.lastIndex) Color.White else HelioColors.TextMuted))
+                }
+            }
+        }
+        Text("Bars: day strain · white line: that day's target", style = body(11.sp, HelioColors.TextMuted))
+    }
+    WeeklyGoalCard(goal)
 }

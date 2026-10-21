@@ -48,6 +48,7 @@ import app.helio.data.Activity
 import app.helio.data.DaySummary
 import app.helio.data.LinkStatus
 import app.helio.data.WeekGoal
+import app.helio.data.toWorkout
 import app.helio.ui.theme.HelioColors
 import app.helio.ui.theme.cap
 import app.helio.ui.theme.card
@@ -212,7 +213,7 @@ private fun WeekBars(goal: WeekGoal) {
 
 @Composable
 fun ActivityRow(a: Activity, onClick: () -> Unit = {}) = BadgeRow(
-    badgeColor = HelioColors.StrainBadge, glyph = { RunGlyph() }, badgeText = String.format("%.1f", a.strain),
+    badgeColor = HelioColors.StrainBadge, glyph = { SportGlyph(a.toWorkout().type) }, badgeText = String.format("%.1f", a.strain),
     title = a.name, top = a.end.format(timeFmt), bottom = a.start.format(timeFmt), edge = HelioColors.StrainBadge, onClick = onClick,
 )
 

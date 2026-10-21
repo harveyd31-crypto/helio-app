@@ -192,6 +192,9 @@ class HealthConnectSource(private val ctx: Context) {
                         strain = (Strain.fromHeartRate(w, rest ?: 60.0) * 10).toInt() / 10.0,
                         start = e.startTime.atZone(zone).toLocalTime(),
                         end = e.endTime.atZone(zone).toLocalTime(),
+                        startMs = e.startTime.toEpochMilli(),
+                        endMs = e.endTime.toEpochMilli(),
+                        hr = w.filterIndexed { i, p -> i == 0 || p.first - w[i - 1].first >= 4000 || i % 5 == 0 },
                     )
                 }
 

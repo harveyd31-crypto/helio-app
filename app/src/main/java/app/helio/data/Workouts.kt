@@ -70,6 +70,19 @@ object WorkoutMath {
     }
 }
 
+/** Any activity (from Zepp / Health Connect, or sample) as a Workout, so it opens the same detail view. */
+fun Activity.toWorkout(): Workout = Workout(
+    startMs, endMs,
+    when {
+        name.contains("muay", true) || name.contains("box", true) || name.contains("martial", true) -> WorkoutType.MuayThai
+        name.contains("run", true) -> WorkoutType.Running
+        name.contains("tennis", true) -> WorkoutType.Tennis
+        name.contains("cross", true) || name.contains("strength", true) -> WorkoutType.CrossFit
+        else -> WorkoutType.Other
+    },
+    hr,
+)
+
 /** Records the activity in progress and keeps finished ones on the phone. */
 object Workouts {
     data class Active(val type: WorkoutType, val start: Long, val hr: List<Pair<Long, Int>>)

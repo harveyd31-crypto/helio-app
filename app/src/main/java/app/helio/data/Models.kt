@@ -14,6 +14,10 @@ data class Activity(
     val strain: Double,
     val start: LocalTime,
     val end: LocalTime,
+    val startMs: Long = 0,
+    val endMs: Long = 0,
+    /** Heart rate during the activity, about every 5 s: (epoch millis, bpm). */
+    val hr: List<Pair<Long, Int>> = emptyList(),
 )
 
 enum class Stage { Awake, Rem, Light, Deep }
