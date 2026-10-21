@@ -206,7 +206,7 @@ fun HomeScreen(
                             val collapse = (scroll.value / range).coerceIn(0f, 1f)
                             RingsHeader(day, collapse, big = if (expanded) 100.dp else 96.dp) { tab = it }
                         }
-                        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 6.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             when (t) {
                                 0 -> OverviewList(day, goal, expanded, live, vo2, bodyAge, onOpenLive, dayWorkouts,
                                     onOpenWorkout = { openWorkout = it; detail = Detail.Workout }) { detail = it }
@@ -248,6 +248,11 @@ fun HomeScreen(
             }
         }
 
+        // Floating Start Activity, bottom right, on the overview
+        if (detail == null && tab == 0 && activeWorkout == null && !testState.running) {
+            app.helio.ui.components.ActivityFab { t -> onStartWorkout(t); detail = Detail.Recording }
+        }
+
         // Closed phone: details slide up full screen
         AnimatedVisibility(
             visible = !expanded && detail != null,
@@ -285,7 +290,6 @@ private fun OverviewList(
             ),
         ) { onOpenWorkout(w) }
     }
-    app.helio.ui.components.StartActivityButton { onDetail(Detail.Picker) }
     SleepRow(day) { onDetail(Detail.Sleep) }
     AnimatedVisibility(!expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         StressRow(live.stress ?: day.stressNow, onOpenLive)

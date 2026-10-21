@@ -70,8 +70,7 @@ fun hms(s: Long) = String.format("%d:%02d:%02d", s / 3600, s % 3600 / 60, s % 60
 @Composable
 fun TypeBadge(t: WorkoutType, size: Int = 40) {
     Box(Modifier.size(size.dp).background(HelioColors.StrainBadge, CircleShape), contentAlignment = Alignment.Center) {
-        if (t == WorkoutType.Running) RunGlyph()
-        else Text(when (t) { WorkoutType.MuayThai -> "MT"; WorkoutType.Tennis -> "TN"; WorkoutType.CrossFit -> "CF"; else -> "W" }, style = cap((size * 0.32f).sp, Color.White))
+        SportGlyph(t)
     }
 }
 

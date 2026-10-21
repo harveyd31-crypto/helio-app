@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class WorkoutType(val label: String) { MuayThai("Muay Thai"), Running("Running"), Tennis("Tennis"), CrossFit("CrossFit"), Other("Workout") }
+enum class WorkoutType(val label: String) { MuayThai("Muay Thai"), Running("Run"), Tennis("Tennis"), CrossFit("Cross"), Other("Workout") }
 
 /** An activity recorded in the app from the Helio's live heart rate. */
 data class Workout(
