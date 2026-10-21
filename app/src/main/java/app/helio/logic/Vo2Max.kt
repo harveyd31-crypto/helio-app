@@ -71,7 +71,7 @@ object Vo2Max {
         return if (xs.isEmpty()) null else xs[xs.size / 2]
     }
 
-    fun compute(days: List<DaySummary>, profile: Profile, asOf: LocalDate): Result {
+    fun compute(days: List<DaySummary>, profile: Profile, asOf: LocalDate, tests: List<app.helio.data.TestResult> = emptyList()): Result {
         val (hrMax, src) = hrMax(profile, days, asOf)
         val estimates = mutableListOf<Estimate>()
         for (d in days.filter { !it.date.isAfter(asOf) && it.date.isAfter(asOf.minusDays(90)) }) {
@@ -85,6 +85,13 @@ object Vo2Max {
                         String.format("%d min at %d:%02d /km, %d bpm", r.minutes.roundToInt(), (pace / 60).toInt(), (pace % 60).toInt(), r.avgHr.roundToInt()),
                     )
                 }
+            }
+        }
+
+        tests.filter { it.valid }.forEach { t ->
+            val d = LocalDate.ofEpochDay(t.dateEpochDay)
+            if (!d.isAfter(asOf) && d.isAfter(asOf.minusDays(90))) {
+                estimates += Estimate(d, t.vo2max!!, Method.Test, String.format("Guided test, %.1f km, fit %.2f", t.distanceM / 1000, t.r2))
             }
         }
 

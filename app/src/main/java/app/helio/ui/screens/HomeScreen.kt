@@ -86,7 +86,7 @@ import app.helio.ui.theme.num
 import java.time.format.DateTimeFormatter
 
 enum class FoldMode { Cover, Open, Tabletop }
-enum class Detail { Vo2, Age }
+enum class Detail { Vo2, Age, Sleep, Test }
 
 private val popSpring = spring<IntSize>(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 
@@ -105,13 +105,18 @@ fun HomeScreen(
     fold: FoldMode,
     profile: Profile,
     onEditProfile: () -> Unit,
+    tests: List<app.helio.data.TestResult>,
+    testState: app.helio.ble.TestState,
+    onStartTest: () -> Unit,
+    onCancelTest: () -> Unit,
+    onSimulateTest: () -> Unit,
     onOpenLive: () -> Unit,
     liveContent: @Composable () -> Unit,
 ) {
     val expanded = fold == FoldMode.Open
     val day = days[selected]
     val goal = remember(days, selected) { WeeklyGoal.compute(days, day.date) }
-    val vo2 = remember(days, selected, profile) { Vo2Max.compute(days, profile, day.date) }
+    val vo2 = remember(days, selected, profile, tests) { Vo2Max.compute(days, profile, day.date, tests) }
     val sample = source == DataSource.Sample
     val bodyAge = remember(days, selected, profile, vo2.value) {
         val age = profile.age ?: if (sample) 40 else null
@@ -122,12 +127,18 @@ fun HomeScreen(
     var detail by remember { mutableStateOf<Detail?>(null) }
     val tabs = if (expanded) listOf("Overview", "Sleep", "Recovery", "Strain", "Live") else listOf("Overview", "Sleep", "Recovery", "Strain")
     if (!expanded && tab == 4) tab = 0
-    BackHandler(enabled = detail != null) { detail = null }
+    if (testState.running && detail != Detail.Test) detail = Detail.Test
+    BackHandler(enabled = detail != null && !testState.running) { detail = null }
 
     val detailContent: @Composable (Detail) -> Unit = { d ->
         when (d) {
-            Detail.Vo2 -> Vo2Detail(vo2, profileMissing = !profile.complete) { detail = null }
+            Detail.Vo2 -> Vo2Detail(vo2, profileMissing = !profile.complete, onOpenTest = { detail = Detail.Test }) { detail = null }
             Detail.Age -> AgeDetail(bodyAge, sample = sample && !profile.complete) { detail = null }
+            Detail.Sleep -> app.helio.ui.components.SleepDetail(days, selected) { detail = null }
+            Detail.Test -> app.helio.ui.components.TestScreen(
+                state = testState, link = live.status, hr = live.hr, last = tests.lastOrNull(), canSimulate = sample,
+                onStart = onStartTest, onCancel = onCancelTest, onSimulate = onSimulateTest,
+            ) { detail = Detail.Vo2 }
         }
     }
 
@@ -171,7 +182,7 @@ fun HomeScreen(
                         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             when (t) {
                                 0 -> OverviewList(day, goal, expanded, live, vo2, bodyAge, onOpenLive) { detail = it }
-                                1 -> SleepTab(day)
+                                1 -> app.helio.ui.components.SleepDetail(days, selected, null)
                                 2 -> RecoveryTab(day)
                                 3 -> StrainTab(day, goal)
                             }
@@ -233,7 +244,7 @@ private fun OverviewList(
 ) {
     WeeklyGoalCard(goal)
     day.activities.forEach { ActivityRow(it) }
-    SleepRow(day)
+    SleepRow(day) { onDetail(Detail.Sleep) }
     AnimatedVisibility(!expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         StressRow(live.stress ?: day.stressNow, onOpenLive)
     }

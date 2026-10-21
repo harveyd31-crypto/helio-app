@@ -100,7 +100,9 @@ class HealthConnectSource(private val ctx: Context) {
         val hrv = readSafe(HeartRateVariabilityRmssdRecord::class, start, end)
             .groupBy { it.time.atZone(zone).toLocalDate() }
             .mapValues { (_, v) -> v.map { it.heartRateVariabilityMillis }.average() }
-        val resp = readSafe(RespiratoryRateRecord::class, start, end)
+        val respRecords = readSafe(RespiratoryRateRecord::class, start, end)
+        val respSamples = respRecords.map { it.time.toEpochMilli() to it.rate }.sortedBy { it.first }
+        val resp = respRecords
             .groupBy { it.time.atZone(zone).toLocalDate() }
             .mapValues { (_, v) -> v.map { it.rate }.average() }
         val sleeps = readSafe(SleepSessionRecord::class, start, end)
@@ -136,11 +138,25 @@ class HealthConnectSource(private val ctx: Context) {
                     it.stage == SleepSessionRecord.STAGE_TYPE_AWAKE || it.stage == SleepSessionRecord.STAGE_TYPE_OUT_OF_BED
                 }.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }
                 val bed = s.startTime.atZone(zone)
+                val sMs = s.startTime.toEpochMilli(); val eMs = s.endTime.toEpochMilli()
                 SleepInfo(
                     minutesAsleep = (total - awake).toInt().coerceAtLeast(0),
                     bed = bed.toLocalTime(),
                     wake = s.endTime.atZone(zone).toLocalTime(),
                     bedDayLabel = bed.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() },
+                    startMs = sMs, endMs = eMs,
+                    stages = s.stages.mapNotNull { st ->
+                        val type = when (st.stage) {
+                            SleepSessionRecord.STAGE_TYPE_DEEP -> Stage.Deep
+                            SleepSessionRecord.STAGE_TYPE_REM -> Stage.Rem
+                            SleepSessionRecord.STAGE_TYPE_LIGHT, SleepSessionRecord.STAGE_TYPE_SLEEPING -> Stage.Light
+                            SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED, SleepSessionRecord.STAGE_TYPE_OUT_OF_BED -> Stage.Awake
+                            else -> null
+                        }
+                        type?.let { StageBlock(st.startTime.toEpochMilli(), st.endTime.toEpochMilli(), it) }
+                    },
+                    hr = slice(hr, sMs, eMs),
+                    resp = respSamples.filter { it.first in sMs..eMs },
                 )
             }
             val sleepPerf = sleepInfo?.let { (it.minutesAsleep / 480.0 * 100).toInt().coerceIn(0, 100) }

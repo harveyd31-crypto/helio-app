@@ -21,6 +21,42 @@ object Repository {
 
     private const val PREFS = "helio_profile"
 
+    private val _tests = MutableStateFlow<List<TestResult>>(emptyList())
+    val tests: StateFlow<List<TestResult>> = _tests.asStateFlow()
+
+    fun loadTests(ctx: Context) {
+        val raw = ctx.getSharedPreferences("helio_tests", Context.MODE_PRIVATE).getString("tests", "[]") ?: "[]"
+        _tests.value = try {
+            val arr = org.json.JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                val st = o.getJSONArray("stages")
+                TestResult(
+                    dateEpochDay = o.getLong("day"),
+                    vo2max = if (o.isNull("vo2")) null else o.getDouble("vo2"),
+                    r2 = o.getDouble("r2"),
+                    stages = (0 until st.length()).map { k -> st.getJSONArray(k).let { Triple(it.getDouble(0), it.getDouble(1), it.getDouble(2)) } },
+                    distanceM = o.getDouble("dist"),
+                    problems = o.getJSONArray("problems").let { a -> (0 until a.length()).map { a.getString(it) } },
+                )
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    fun addTest(ctx: Context, t: TestResult) {
+        val all = _tests.value + t
+        val arr = org.json.JSONArray()
+        all.forEach { r ->
+            arr.put(org.json.JSONObject().apply {
+                put("day", r.dateEpochDay); put("vo2", r.vo2max ?: org.json.JSONObject.NULL); put("r2", r.r2); put("dist", r.distanceM)
+                put("stages", org.json.JSONArray().apply { r.stages.forEach { (a, b, c) -> put(org.json.JSONArray().put(a).put(b).put(c)) } })
+                put("problems", org.json.JSONArray().apply { r.problems.forEach { put(it) } })
+            })
+        }
+        ctx.getSharedPreferences("helio_tests", Context.MODE_PRIVATE).edit().putString("tests", arr.toString()).apply()
+        _tests.value = all
+    }
+
     fun loadProfile(ctx: Context) {
         val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         _profile.value = Profile(

@@ -7,6 +7,42 @@ import kotlin.math.sin
 
 /** Demo days shown until Health Connect has data. Deterministic, so screenshots stay stable. */
 object SampleData {
+    private fun sampleSleep(date: LocalDate, bed: LocalTime, wake: LocalTime, asleep: Int, s: Int): SleepInfo {
+        val zone = java.time.ZoneId.systemDefault()
+        val bedDate = if (bed.hour >= 12) date.minusDays(1) else date
+        val start = bedDate.atTime(bed).atZone(zone).toInstant().toEpochMilli()
+        val end = date.atTime(wake).atZone(zone).toInstant().toEpochMilli()
+        val blocks = mutableListOf<StageBlock>()
+        var t = start
+        fun add(min: Int, st: Stage) { if (min <= 0 || t >= end) return; val e = minOf(end, t + min * 60_000L); blocks += StageBlock(t, e, st); t = e }
+        add(12, Stage.Light)
+        var cycle = 0
+        while (t < end) {
+            add(listOf(42, 30, 16, 6, 0, 0)[cycle.coerceAtMost(5)] + (s % 4) * 2, Stage.Deep)
+            add(22 + (cycle * 3 + s) % 10, Stage.Light)
+            add(listOf(10, 18, 24, 30, 34, 36)[cycle.coerceAtMost(5)], Stage.Rem)
+            if ((cycle + s) % 3 == 0) add(3 + s % 4, Stage.Awake)
+            add(14, Stage.Light)
+            cycle++
+        }
+        val hr = mutableListOf<Pair<Long, Int>>()
+        val resp = mutableListOf<Pair<Long, Double>>()
+        var k = 0
+        var m = start
+        while (m < end) {
+            val st = blocks.firstOrNull { m >= it.start && m < it.end }?.stage ?: Stage.Light
+            val base = when (st) { Stage.Deep -> 50; Stage.Light -> 54; Stage.Rem -> 59; Stage.Awake -> 64 }
+            hr += m to (base + 3 * sin(k * 0.9 + s) + 2 * sin(k * 2.3)).toInt()
+            resp += m to 14.6 + (if (st == Stage.Rem) 0.9 else 0.0) + 0.4 * sin(k * 0.7 + s)
+            m += 3 * 60_000L; k++
+        }
+        return SleepInfo(
+            minutesAsleep = asleep, bed = bed, wake = wake,
+            bedDayLabel = bedDate.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() },
+            startMs = start, endMs = end, stages = blocks, hr = hr, resp = resp,
+        )
+    }
+
     private val names = listOf("Running", "Cycling", "Walking", "Strength", "Tennis")
 
     fun days(today: LocalDate = LocalDate.now(), count: Int = 35): List<DaySummary> =
@@ -42,7 +78,7 @@ object SampleData {
             strain = (strain * 10).toInt() / 10.0,
             strainTarget = Strain.target(recovery),
             sleepPerformance = sleepPerf,
-            sleep = SleepInfo(asleep, bed, wake, date.minusDays(1).dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }),
+            sleep = sampleSleep(date, bed, wake, asleep, s),
             respRate = 14.6 + (s % 5) * 0.3,
             skinTempDelta = ((s % 7) - 3) / 10.0,
             stressNow = series.last().v,

@@ -16,12 +16,38 @@ data class Activity(
     val end: LocalTime,
 )
 
+enum class Stage { Awake, Rem, Light, Deep }
+
+/** One block of the hypnogram, epoch millis. */
+data class StageBlock(val start: Long, val end: Long, val stage: Stage)
+
 data class SleepInfo(
     val minutesAsleep: Int,
     val bed: LocalTime,
     val wake: LocalTime,
     val bedDayLabel: String,
-)
+    val startMs: Long = 0,
+    val endMs: Long = 0,
+    val stages: List<StageBlock> = emptyList(),
+    /** Heart rate and breathing rate during the night: (epoch millis, value). */
+    val hr: List<Pair<Long, Int>> = emptyList(),
+    val resp: List<Pair<Long, Double>> = emptyList(),
+) {
+    fun minutesIn(s: Stage): Int = (stages.filter { it.stage == s }.sumOf { it.end - it.start } / 60_000).toInt()
+}
+
+/** A finished guided VO2 test. */
+data class TestResult(
+    val dateEpochDay: Long,
+    val vo2max: Double?,
+    val r2: Double,
+    /** Per stage: speed m/s, heart rate, oxygen cost ml/kg/min. */
+    val stages: List<Triple<Double, Double, Double>>,
+    val distanceM: Double,
+    val problems: List<String>,
+) {
+    val valid: Boolean get() = vo2max != null && problems.isEmpty()
+}
 
 data class DaySummary(
     val date: LocalDate,

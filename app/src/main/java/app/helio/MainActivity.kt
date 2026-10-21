@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         Repository.loadProfile(this)
+        Repository.loadTests(this)
         lifecycleScope.launch { Repository.refresh(this@MainActivity) }
         if (LiveHeartRateService.rememberedDevice(this) != null && LiveHeartRateService.hasPermissions(this)) {
             LiveHeartRateService.start(this)
@@ -75,6 +76,8 @@ class MainActivity : ComponentActivity() {
         val live by Repository.live.collectAsState()
         val source by Repository.source.collectAsState()
         val profile by Repository.profile.collectAsState()
+        val tests by Repository.tests.collectAsState()
+        val testState by app.helio.ble.RunTestService.state.collectAsState()
         val scope = rememberCoroutineScope()
         var editProfile by remember { mutableStateOf(false) }
         if (editProfile) ProfileDialog(profile, onSave = {
@@ -117,6 +120,14 @@ class MainActivity : ComponentActivity() {
             } else btLauncher.launch(perms.toTypedArray())
         }
 
+        val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+            if (res[Manifest.permission.ACCESS_FINE_LOCATION] == true) app.helio.ble.RunTestService.start(this@MainActivity)
+        }
+        fun startTest() {
+            if (app.helio.ble.RunTestService.hasPermission(this@MainActivity)) app.helio.ble.RunTestService.start(this@MainActivity)
+            else locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+
         val density = LocalDensity.current
         val liveContent: @Composable () -> Unit = {
             LiveScreen(
@@ -145,6 +156,15 @@ class MainActivity : ComponentActivity() {
                 fold = fold,
                 profile = profile,
                 onEditProfile = { editProfile = true },
+                tests = tests,
+                testState = testState,
+                onStartTest = { startTest() },
+                onCancelTest = { app.helio.ble.RunTestService.cancel(this@MainActivity) },
+                onSimulateTest = {
+                    val today = java.time.LocalDate.now()
+                    val hrMax = app.helio.logic.Vo2Max.hrMax(profile, days, today).first
+                    Repository.addTest(this@MainActivity, app.helio.logic.RunTest.simulate(hrMax, today.toEpochDay()))
+                },
                 onOpenLive = { forceLive = true },
                 liveContent = liveContent,
             )

@@ -129,7 +129,7 @@ private fun Sparkline(values: List<Double>, modifier: Modifier) {
 private val shortDate = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
 
 @Composable
-fun Vo2Detail(r: Vo2Max.Result, profileMissing: Boolean, onClose: () -> Unit) {
+fun Vo2Detail(r: Vo2Max.Result, profileMissing: Boolean, onOpenTest: () -> Unit, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         DetailHeader("VO2 MAX", onClose)
         Row(verticalAlignment = Alignment.Bottom) {
@@ -179,9 +179,9 @@ fun Vo2Detail(r: Vo2Max.Result, profileMissing: Boolean, onClose: () -> Unit) {
             }
         }
 
-        Column(Modifier.fillMaxWidth().card().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("RUNNING TEST · NEXT UPDATE", style = cap(11.sp, HelioColors.Strain))
-            Text("3 × 4 minutes on flat ground: easy, steady, comfortably hard. The app records GPS pace and live Helio heart rate and fits your personal heart-rate-vs-speed line. Once a month is enough.", style = body(13.sp))
+        Column(Modifier.fillMaxWidth().card().clickable(onClick = onOpenTest).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("GUIDED RUNNING TEST ›", style = cap(11.sp, HelioColors.Strain))
+            Text("12 minutes on flat ground: warm-up, then easy, steady and comfortably hard. GPS pace + live Helio heart rate give your personal line. Counts double. Once a month is enough.", style = body(13.sp))
         }
     }
 }
