@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
         }
         Repository.loadProfile(this)
         Repository.loadTests(this)
+        app.helio.data.Workouts.load(this)
         lifecycleScope.launch { Repository.refresh(this@MainActivity) }
         if (LiveHeartRateService.rememberedDevice(this) != null && LiveHeartRateService.hasPermissions(this)) {
             LiveHeartRateService.start(this)
@@ -77,6 +78,8 @@ class MainActivity : ComponentActivity() {
         val source by Repository.source.collectAsState()
         val profile by Repository.profile.collectAsState()
         val tests by Repository.tests.collectAsState()
+        val workouts by app.helio.data.Workouts.all.collectAsState()
+        val activeWorkout by app.helio.data.Workouts.active.collectAsState()
         val testState by app.helio.ble.RunTestService.state.collectAsState()
         val scope = rememberCoroutineScope()
         var editProfile by remember { mutableStateOf(false) }
@@ -160,6 +163,15 @@ class MainActivity : ComponentActivity() {
                 testState = testState,
                 onStartTest = { startTest() },
                 onCancelTest = { app.helio.ble.RunTestService.cancel(this@MainActivity) },
+                workouts = workouts,
+                activeWorkout = activeWorkout,
+                onStartWorkout = { t ->
+                    if (live.status != app.helio.data.LinkStatus.Live) connect()
+                    app.helio.data.Workouts.start(t)
+                },
+                onEndWorkout = { app.helio.data.Workouts.stop(this@MainActivity) },
+                onDiscardWorkout = { app.helio.data.Workouts.discard() },
+                onDeleteWorkout = { app.helio.data.Workouts.delete(this@MainActivity, it) },
                 onSimulateTest = {
                     val today = java.time.LocalDate.now()
                     val hrMax = app.helio.logic.Vo2Max.hrMax(profile, days, today).first

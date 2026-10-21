@@ -86,7 +86,7 @@ import app.helio.ui.theme.num
 import java.time.format.DateTimeFormatter
 
 enum class FoldMode { Cover, Open, Tabletop }
-enum class Detail { Vo2, Age, Sleep, Test }
+enum class Detail { Vo2, Age, Sleep, Test, Picker, Recording, Workout }
 
 private val popSpring = spring<IntSize>(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 
@@ -110,6 +110,12 @@ fun HomeScreen(
     onStartTest: () -> Unit,
     onCancelTest: () -> Unit,
     onSimulateTest: () -> Unit,
+    workouts: List<app.helio.data.Workout>,
+    activeWorkout: app.helio.data.Workouts.Active?,
+    onStartWorkout: (app.helio.data.WorkoutType) -> Unit,
+    onEndWorkout: () -> app.helio.data.Workout?,
+    onDiscardWorkout: () -> Unit,
+    onDeleteWorkout: (app.helio.data.Workout) -> Unit,
     onOpenLive: () -> Unit,
     liveContent: @Composable () -> Unit,
 ) {
@@ -128,6 +134,15 @@ fun HomeScreen(
     val tabs = if (expanded) listOf("Overview", "Sleep", "Recovery", "Strain", "Live") else listOf("Overview", "Sleep", "Recovery", "Strain")
     if (!expanded && tab == 4) tab = 0
     if (testState.running && detail != Detail.Test) detail = Detail.Test
+    if (activeWorkout != null && detail != Detail.Recording) detail = Detail.Recording
+    var openWorkout by remember { mutableStateOf<app.helio.data.Workout?>(null) }
+    val sampleWorkout = remember { app.helio.data.Workouts.sample() }
+    val allWorkouts = if (sample) workouts + sampleWorkout else workouts
+    val rest = (day.restingHr ?: 60).toDouble()
+    fun statsOf(w: app.helio.data.Workout) = app.helio.data.WorkoutMath.stats(w, vo2.hrMax, rest, profile)
+    val zone = java.time.ZoneId.systemDefault()
+    val dayWorkouts = allWorkouts.filter { java.time.Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() == day.date }
+        .map { it to statsOf(it) }
     BackHandler(enabled = detail != null && !testState.running) { detail = null }
 
     val detailContent: @Composable (Detail) -> Unit = { d ->
@@ -135,6 +150,18 @@ fun HomeScreen(
             Detail.Vo2 -> Vo2Detail(vo2, profileMissing = !profile.complete, onOpenTest = { detail = Detail.Test }) { detail = null }
             Detail.Age -> AgeDetail(bodyAge, sample = sample && !profile.complete) { detail = null }
             Detail.Sleep -> app.helio.ui.components.SleepDetail(days, selected) { detail = null }
+            Detail.Picker -> app.helio.ui.components.ActivityPicker(live.status, onPick = { onStartWorkout(it); detail = Detail.Recording }) { detail = null }
+            Detail.Recording -> activeWorkout?.let { a ->
+                app.helio.ui.components.RecordingView(
+                    a, live.hr, live.status, vo2.hrMax, rest, profile,
+                    onEnd = { val w = onEndWorkout(); openWorkout = w; detail = if (w != null) Detail.Workout else null },
+                    onDiscard = { onDiscardWorkout(); detail = null },
+                )
+            } ?: Text("Activity finished.", style = body(14.sp))
+            Detail.Workout -> openWorkout?.let { w ->
+                val history = allWorkouts.filter { it.type == w.type && it.start < w.start && it.start > w.start - 30L * 86_400_000 }.map { statsOf(it) }
+                app.helio.ui.components.WorkoutDetail(w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null) { detail = null }
+            } ?: Text("No activity selected.", style = body(14.sp))
             Detail.Test -> app.helio.ui.components.TestScreen(
                 state = testState, link = live.status, hr = live.hr, last = tests.lastOrNull(), canSimulate = sample,
                 onStart = onStartTest, onCancel = onCancelTest, onSimulate = onSimulateTest,
@@ -181,7 +208,8 @@ fun HomeScreen(
                         }
                         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 6.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             when (t) {
-                                0 -> OverviewList(day, goal, expanded, live, vo2, bodyAge, onOpenLive) { detail = it }
+                                0 -> OverviewList(day, goal, expanded, live, vo2, bodyAge, onOpenLive, dayWorkouts,
+                                    onOpenWorkout = { openWorkout = it; detail = Detail.Workout }) { detail = it }
                                 1 -> app.helio.ui.components.SleepDetail(days, selected, null)
                                 2 -> RecoveryTab(day)
                                 3 -> StrainTab(day, goal)
@@ -240,10 +268,24 @@ fun HomeScreen(
 @Composable
 private fun OverviewList(
     day: DaySummary, goal: WeekGoal, expanded: Boolean, live: LiveState,
-    vo2: Vo2Max.Result, bodyAge: BodyAge.Result?, onOpenLive: () -> Unit, onDetail: (Detail) -> Unit,
+    vo2: Vo2Max.Result, bodyAge: BodyAge.Result?, onOpenLive: () -> Unit,
+    dayWorkouts: List<Pair<app.helio.data.Workout, app.helio.data.WorkoutStats>>,
+    onOpenWorkout: (app.helio.data.Workout) -> Unit,
+    onDetail: (Detail) -> Unit,
 ) {
     WeeklyGoalCard(goal)
     day.activities.forEach { ActivityRow(it) }
+    val zone = java.time.ZoneId.systemDefault()
+    dayWorkouts.forEach { (w, st) ->
+        ActivityRow(
+            app.helio.data.Activity(
+                w.type.label, (st.strain * 10).toInt() / 10.0,
+                java.time.Instant.ofEpochMilli(w.start).atZone(zone).toLocalTime(),
+                java.time.Instant.ofEpochMilli(w.end).atZone(zone).toLocalTime(),
+            ),
+        ) { onOpenWorkout(w) }
+    }
+    app.helio.ui.components.StartActivityButton { onDetail(Detail.Picker) }
     SleepRow(day) { onDetail(Detail.Sleep) }
     AnimatedVisibility(!expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         StressRow(live.stress ?: day.stressNow, onOpenLive)

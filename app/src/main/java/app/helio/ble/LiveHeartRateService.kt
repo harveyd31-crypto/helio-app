@@ -224,6 +224,7 @@ class LiveHeartRateService : Service() {
             while (samples.isNotEmpty() && now - samples.first().first > WINDOW_MS) samples.removeFirst()
         }
         Repository.live.value = Repository.live.value.copy(hr = hr, hrHistory = synchronized(samples) { samples.toList() })
+        app.helio.data.Workouts.onHr(now, hr)
     }
 
     // ── Live stress, widget, alerts ───────────────────────────────────────────
