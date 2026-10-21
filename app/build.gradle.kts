@@ -75,4 +75,7 @@ dependencies {
     implementation("androidx.glance:glance-material3:1.1.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // Live background blur for the glass Start Activity button
+    implementation("dev.chrisbanes.haze:haze:1.2.2")
 }

@@ -59,6 +59,7 @@ import app.helio.data.LiveState
 import app.helio.data.Profile
 import app.helio.data.WeekGoal
 import app.helio.data.toWorkout
+import dev.chrisbanes.haze.hazeSource
 import app.helio.logic.BodyAge
 import app.helio.logic.Vo2Max
 import app.helio.logic.WeeklyGoal
@@ -172,12 +173,13 @@ fun HomeScreen(
         }
     }
 
+    val hazeState = remember { dev.chrisbanes.haze.HazeState() }
     BoxWithConstraints(Modifier.fillMaxSize().background(HelioColors.background)) {
         val sidePad = if (expanded) 22.dp else 14.dp
         val leftTarget = if (expanded) 380.dp else maxWidth - sidePad * 2
         val leftWidth by animateDpAsState(leftTarget, spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow), label = "left")
 
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = sidePad, vertical = 8.dp)) {
+        Column(Modifier.fillMaxSize().hazeSource(hazeState).safeDrawingPadding().padding(horizontal = sidePad, vertical = 8.dp)) {
             TopBar(
                 date = day.date,
                 canPrev = selected > 0, canNext = selected < days.lastIndex,
@@ -253,7 +255,7 @@ fun HomeScreen(
 
         // Floating Start Activity, bottom right, on the overview
         if (detail == null && tab == 0 && activeWorkout == null && !testState.running) {
-            ActivityFab { t -> onStartWorkout(t); detail = Detail.Recording }
+            ActivityFab(hazeState) { t -> onStartWorkout(t); detail = Detail.Recording }
         }
 
         // Closed phone: details slide up full screen

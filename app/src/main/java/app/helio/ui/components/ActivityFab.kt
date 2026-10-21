@@ -48,6 +48,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.helio.data.WorkoutType
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import app.helio.ui.theme.HelioColors
 import app.helio.ui.theme.cap
 
@@ -63,14 +68,15 @@ private val options = listOf(
  * out above it, each springing in a beat after the one below. Tap a sport to start recording.
  */
 @Composable
-fun BoxScope.ActivityFab(onPick: (WorkoutType) -> Unit) {
+fun BoxScope.ActivityFab(haze: HazeState, onPick: (WorkoutType) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val scrim by animateFloatAsState(if (open) 0.62f else 0f, tween(220), label = "scrim")
+    val scrim by animateFloatAsState(if (open) 1f else 0f, tween(260), label = "scrim")
     val turn by animateFloatAsState(if (open) 135f else 0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow), label = "turn")
 
     if (scrim > 0.01f) {
         Box(
-            Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrim))
+            Modifier.fillMaxSize()
+                .hazeEffect(haze) { blurRadius = (8 * scrim).dp; tints = listOf(HazeTint(Color(0xFF05080A).copy(alpha = 0.38f * scrim))) }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { open = false },
         )
     }
@@ -92,13 +98,12 @@ fun BoxScope.ActivityFab(onPick: (WorkoutType) -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         label.uppercase(), style = cap(13.sp, Color.White),
-                        modifier = Modifier.background(Color(0xE61B2228), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.glass(haze, RoundedCornerShape(12.dp), blue = false).padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                     Spacer(Modifier.width(12.dp))
                     Box(
-                        Modifier.size(52.dp).shadow(10.dp, CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(0xFF2B88E0), Color(0xFF1C5FA8))), CircleShape)
-                            .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                        Modifier.size(54.dp).shadow(12.dp, CircleShape)
+                            .glass(haze, CircleShape, blue = true)
                             .clickable { open = false; onPick(type) },
                         contentAlignment = Alignment.Center,
                     ) { SportGlyph(type) }
@@ -108,12 +113,7 @@ fun BoxScope.ActivityFab(onPick: (WorkoutType) -> Unit) {
 
         Row(
             Modifier.height(56.dp).shadow(16.dp, RoundedCornerShape(28.dp))
-                .background(
-                    if (open) Brush.linearGradient(listOf(Color(0xFF39434C), Color(0xFF2A3239)))
-                    else Brush.linearGradient(listOf(Color(0xFF3A9BF0), Color(0xFF1F67B8))),
-                    RoundedCornerShape(28.dp),
-                )
-                .border(1.dp, Color(0x40FFFFFF), RoundedCornerShape(28.dp))
+                .glass(haze, RoundedCornerShape(28.dp), blue = false)
                 .clickable { open = !open }
                 .padding(start = 16.dp, end = 22.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -124,6 +124,26 @@ fun BoxScope.ActivityFab(onPick: (WorkoutType) -> Unit) {
         }
     }
 }
+
+/**
+ * Liquid glass: the content behind is blurred live (Haze) and lightly tinted, a diagonal sheen sits on
+ * top, and the rim is brighter at the top edge than the bottom, like light catching curved glass.
+ */
+private fun Modifier.glass(haze: HazeState, shape: Shape, blue: Boolean): Modifier = this
+    .clip(shape)
+    .hazeEffect(haze) {
+        blurRadius = 18.dp
+        noiseFactor = 0.06f
+        tints = listOf(HazeTint(if (blue) Color(0xFF2E8FE6).copy(alpha = 0.26f) else Color.White.copy(alpha = 0.10f)))
+    }
+    .background(
+        Brush.linearGradient(
+            if (blue) listOf(Color(0x61A0D2FF), Color(0x142E8FE6), Color(0x332E8FE6))
+            else listOf(Color(0x38FFFFFF), Color(0x0FFFFFFF), Color(0x1AFFFFFF)),
+        ),
+        shape,
+    )
+    .border(1.dp, Brush.verticalGradient(listOf(Color(0x8CFFFFFF), Color(0x1FFFFFFF), Color(0x33FFFFFF))), shape)
 
 @Composable
 private fun StopwatchGlyph() {
