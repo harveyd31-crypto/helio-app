@@ -61,6 +61,7 @@ import app.helio.data.WeekGoal
 import app.helio.logic.BodyAge
 import app.helio.logic.Vo2Max
 import app.helio.logic.WeeklyGoal
+import app.helio.ui.components.ActivityFab
 import app.helio.ui.components.ActivityRow
 import app.helio.ui.components.AgeDetail
 import app.helio.ui.components.AgeRow
@@ -250,7 +251,7 @@ fun HomeScreen(
 
         // Floating Start Activity, bottom right, on the overview
         if (detail == null && tab == 0 && activeWorkout == null && !testState.running) {
-            app.helio.ui.components.ActivityFab { t -> onStartWorkout(t); detail = Detail.Recording }
+            ActivityFab { t -> onStartWorkout(t); detail = Detail.Recording }
         }
 
         // Closed phone: details slide up full screen
