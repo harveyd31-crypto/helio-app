@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "app.helio"
+        applicationId = "com.davidharvey.helio"
         minSdk = 31
         targetSdk = 35
         versionCode = 1
