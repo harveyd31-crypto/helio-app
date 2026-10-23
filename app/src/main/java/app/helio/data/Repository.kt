@@ -2,6 +2,7 @@ package app.helio.data
 
 import android.content.Context
 import app.helio.widget.WidgetStore
+import app.helio.strap.StrapScience
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,9 +82,9 @@ object Repository {
     suspend fun refresh(ctx: Context) {
         val app = ctx.applicationContext
         // 1. Direct from the strap (Ridge protocol + science), when paired and synced
-        if (app.helio.strap.StrapScience.hasData(app)) {
+        if (StrapScience.hasData(app)) {
             val d = try {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.helio.strap.StrapScience.days(app, _profile.value) }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { StrapScience.days(app, _profile.value) }
             } catch (e: Exception) { android.util.Log.w("helio", "strap science failed", e); emptyList() }
             if (d.isNotEmpty()) {
                 _days.value = d
