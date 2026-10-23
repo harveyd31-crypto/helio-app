@@ -94,8 +94,9 @@ fun SleepDetail(days: List<DaySummary>, selected: Int, onClose: (() -> Unit)?) {
                 }
             }
         } else {
-            Text("Zepp didn't share sleep stages for this night: only the total is available.", style = body(13.sp, HelioColors.TextMuted))
+            Text("No sleep stages for this night: only the total is available.", style = body(13.sp, HelioColors.TextMuted))
         }
+        SleepExtras(day.extras)
 
         val from = (selected - 6).coerceAtLeast(0)
         val week = days.subList(from, selected + 1)

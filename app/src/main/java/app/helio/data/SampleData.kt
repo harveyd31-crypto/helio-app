@@ -69,6 +69,49 @@ object SampleData {
         return Activity(name, (strain * 10).toInt() / 10.0, start, start.plusMinutes(minutes), t0, t0 + n * 5000L, hr)
     }
 
+    private fun sampleExtras(date: LocalDate, recovery: Int, sleepPerf: Int, s: Int): StrapExtras {
+        val zone = java.time.ZoneId.systemDefault()
+        val t0 = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val wakeMin = 7 * 60 + 10
+        var c = 30.0 + s % 10
+        val curve = (0 until 144).map { k ->
+            val m = k * 10
+            c += when {
+                m < wakeMin -> 0.006 * 10 * (100 - c) * 0.9
+                m in 17 * 60..18 * 60 + 30 -> -2.2
+                m in 14 * 60..15 * 60 -> -0.9
+                else -> -0.45
+            }
+            c = c.coerceIn(0.0, 100.0)
+            (t0 + m * 60_000L) to c
+        }
+        val nowIdx = if (date == LocalDate.now()) (java.time.LocalTime.now().toSecondOfDay() / 600).coerceIn(1, 143) else 143
+        val shown = curve.take(nowIdx + 1)
+        val hrvSub = (recovery + 6 * sin(s * 1.9)).toInt().coerceIn(5, 99)
+        return StrapExtras(
+            charge = shown.last().second.toInt(), chargeAtWake = curve[wakeMin / 10].second.toInt(),
+            chargeHigh = shown.maxOf { it.second }.toInt(), chargeLow = shown.minOf { it.second }.toInt(),
+            chargeRecharged = curve[wakeMin / 10].second - curve.first().second + 8, chargeActivity = 18.0 + s % 9, chargeStress = 6.0 + s % 5, chargeLiving = 24.0,
+            chargeCurve = shown,
+            recoveryParts = listOf(
+                RecoveryPart("hrv", hrvSub, 0.42, 40.0 + recovery / 3, 58.0),
+                RecoveryPart("rhr", (recovery - 4 * sin(s * 1.1)).toInt().coerceIn(5, 99), 0.28, 62.0 - recovery / 10, 56.0),
+                RecoveryPart("sleep", sleepPerf, 0.20, sleepPerf * 4.8, null),
+                RecoveryPart("rr", (60 + 15 * sin(s * 0.8)).toInt(), 0.10, 14.8, 15.0),
+            ),
+            sleepNeedMin = 480, sleepDebtMin = (100 - sleepPerf).coerceAtLeast(0) * 6, sleepRegularity = 72.0 + 8 * sin(s * 0.5),
+            sleepEfficiency = 88.0 + 4 * sin(s * 1.4), deviceSleepScore = (70 + 15 * sin(s * 1.7)).toInt(),
+            breathingPerHour = 2.1 + 1.2 * sin(s * 1.3).coerceAtLeast(-0.9), breathingUsual = 2.4,
+            spo2Night = 95.0 + sin(s * 0.9), spo2Min = 89.0 + 2 * sin(s * 1.2),
+            steps = (7200 + 2600 * sin(s * 0.7)).toInt(), stepsUsualByNow = 6400,
+            activeCalories = (420 + 160 * sin(s * 0.9)).toInt(), totalCalories = (2280 + 220 * sin(s * 0.9)).toInt(), distanceKm = 5.4,
+            pai = (78 + 30 * sin(s * 0.3)).toInt(), paiToday = (12 + 10 * sin(s * 0.9)).toInt().coerceAtLeast(0),
+            strapStress = (32 + 18 * sin(s * 1.7)).toInt(),
+            illness = if (s % 17 == 0) "Breathing rate and skin temperature were both above your usual last night. Worth an easier day." else null,
+            cardioLoad = 140.0 + 40 * sin(s * 0.9), typicalLoad = 150.0,
+        )
+    }
+
     private fun day(date: LocalDate, seed: Int): DaySummary {
         val s = seed + 3
         val recovery = (62 + 26 * sin(s * 1.3) + 8 * sin(s * 3.7)).toInt().coerceIn(18, 96)
@@ -117,6 +160,7 @@ object SampleData {
             vigorousMin = (8 + 8 * sin(s * 0.9 + 1)).toInt().coerceAtLeast(0),
             strengthMin = if (names[s % names.size] == "Cross") actLen.toInt() else 0,
             maxHr = (168 + 12 * sin(s * 0.9 + 1)).toInt(),
+            extras = sampleExtras(date, recovery, sleepPerf, s),
             runs = if (names[s % names.size] == "Run") listOf(
                 RunEffort(actLen.toDouble(), 2.85 + 0.12 * sin(s * 2.1) + (35 - seed) * 0.004, 148 + 5 * sin(s * 1.3)),
             ) else emptyList(),

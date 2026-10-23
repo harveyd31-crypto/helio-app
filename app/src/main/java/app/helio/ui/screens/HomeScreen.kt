@@ -38,6 +38,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -89,7 +90,7 @@ import app.helio.ui.theme.num
 import java.time.format.DateTimeFormatter
 
 enum class FoldMode { Cover, Open, Tabletop }
-enum class Detail { Vo2, Age, Sleep, Test, Picker, Recording, Workout }
+enum class Detail { Vo2, Age, Sleep, Test, Picker, Recording, Workout, Charge }
 
 private val popSpring = spring<IntSize>(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 
@@ -154,6 +155,7 @@ fun HomeScreen(
             Detail.Vo2 -> Vo2Detail(vo2, profileMissing = !profile.complete, onOpenTest = { detail = Detail.Test }) { detail = null }
             Detail.Age -> AgeDetail(bodyAge, sample = sample && !profile.complete) { detail = null }
             Detail.Sleep -> app.helio.ui.components.SleepDetail(days, selected) { detail = null }
+            Detail.Charge -> app.helio.ui.components.ChargeDetail(day) { detail = null }
             Detail.Picker -> app.helio.ui.components.ActivityPicker(live.status, onPick = { onStartWorkout(it); detail = Detail.Recording }) { detail = null }
             Detail.Recording -> activeWorkout?.let { a ->
                 app.helio.ui.components.RecordingView(
@@ -187,8 +189,16 @@ fun HomeScreen(
                 link = live.status, battery = null, onProfile = onEditProfile,
             )
             Tabs(tabs, tab, { if (it == 4 && !expanded) onOpenLive() else tab = it }, spread = !expanded)
-            if (sample) {
-                Text("Sample data · allow Health Connect to see yours", style = body(11.sp, HelioColors.TextDim), modifier = Modifier.padding(top = 6.dp))
+            val strap by app.helio.strap.StrapManager.status.collectAsState()
+            when (source) {
+                DataSource.Sample -> app.helio.ui.components.SourceLine("Sample data · pair the Helio in Profile, or allow Health Connect")
+                DataSource.HealthConnect -> app.helio.ui.components.SourceLine("From Health Connect (Zepp)")
+                DataSource.Strap -> app.helio.ui.components.SourceLine(
+                    strap.error ?: strap.progress?.let { "Syncing with Helio · $it" }
+                        ?: ("Synced from Helio" + (strap.lastSync?.let { " · " + java.time.LocalTime.ofInstant(it, java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")) } ?: "") +
+                            (strap.battery?.let { " · strap $it%" } ?: "")),
+                    if (strap.error != null) HelioColors.RecYellow else HelioColors.TextDim,
+                )
             }
 
             var dragX by remember { mutableFloatStateOf(0f) }
@@ -283,7 +293,10 @@ private fun OverviewList(
     onOpenWorkout: (app.helio.data.Workout) -> Unit,
     onDetail: (Detail) -> Unit,
 ) {
+    app.helio.ui.components.IllnessBanner(day.extras)
+    app.helio.ui.components.ChargeRow(day.extras) { onDetail(Detail.Charge) }
     WeeklyGoalCard(goal)
+    app.helio.ui.components.DailyTiles(day.extras)
     day.activities.forEach { a -> ActivityRow(a) { if (a.hr.size > 10) onOpenWorkout(a.toWorkout()) } }
     val zone = java.time.ZoneId.systemDefault()
     dayWorkouts.forEach { (w, st) ->
@@ -350,6 +363,8 @@ private fun SleepTab(day: DaySummary) {
 @Composable
 private fun RecoveryTab(day: DaySummary) {
     Hero(day, 168.dp, 88.dp)
+    app.helio.ui.components.IllnessBanner(day.extras)
+    app.helio.ui.components.RecoveryParts(day.extras)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         StatTile(day.hrv?.let { "$it ms" } ?: "—", "HRV", Modifier.weight(1f))
         StatTile(day.restingHr?.toString() ?: "—", "Resting HR", Modifier.weight(1f))
@@ -382,6 +397,11 @@ private fun StrainDetailTab(
             )
             target?.let { val x = (it / 21.0).toFloat() * size.width; drawLine(Color.White, androidx.compose.ui.geometry.Offset(x, -4f), androidx.compose.ui.geometry.Offset(x, h + 4f), 3f) }
         }
+        day.extras?.cardioLoad?.let { load ->
+            Text(String.format("Cardio load %.0f", load) + (day.extras.typicalLoad?.let { String.format(" · your typical %.0f", it) } ?: "") +
+                ". Strain is placed against your own heavy days (90-day high), so 21 means hard for you.", style = body(12.sp, HelioColors.TextMuted))
+        }
+        day.extras?.strainWithheld?.let { Text(it, style = body(12.sp, HelioColors.RecYellow)) }
         Text(
             when {
                 target == null -> "Strain is 0–21, from time spent at raised heart rate."
