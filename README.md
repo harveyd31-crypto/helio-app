@@ -7,7 +7,23 @@ A personal Android app for the Amazfit Helio Strap, designed for the Galaxy Z Fo
 - **Half-folded:** live mode, with a stress gauge and live line above the hinge and breathing guide + controls below.
 - **Widget:** recovery, strain and stress; refreshed every 30 s while the live link is on.
 
-## Data
+## Data — direct from the strap (recommended)
+Helio talks to the Helio Strap directly using Ridge's protocol module (github.com/TheCommishDeuce/ridge-helio-strap,
+AGPL-3.0, vendored in `strap-protocol/` and `strap-science/`). One authenticated Bluetooth link carries both the live
+heart rate and a history sync every 10 minutes: heart rate per minute, HRV all day, stress, skin temperature, SpO2,
+breathing rate, sleep stages, workouts, PAI and battery. Recovery, strain, sleep need/debt/regularity, Charge and the
+illness flag come from Ridge's science; Helio adds live stress, the weekly strain goal, VO2 max blend + running test,
+estimated age and the fold-aware UI.
+
+Setup, once:
+1. Pair the strap with the Zepp app and install any firmware update.
+2. On a computer: `uv run tools/keyfetch/keyfetch.py you@example.com` from the Ridge repo → the strap's MAC and auth key
+   (signing in logs the Zepp app out; the key stays valid until the strap is paired again).
+3. Keep the Zepp app from reconnecting to the strap (force-stop it / turn off its Bluetooth permission): the strap
+   talks to one app at a time.
+4. In Helio: Profile → Helio Strap · direct → MAC and key → Save. The link starts and the first sync pulls ~30 days.
+
+## Data — fallbacks
 - **Live:** the Helio's standard Bluetooth heart-rate broadcast (0x180D / 0x2A37), kept open by a foreground service.
   Live stress = heart rate vs your resting baseline, every 5 s (the Helio does not broadcast beat-to-beat intervals).
   Notification when stress stays ≥ 2.5 for 2 minutes (at most every 30 min).
