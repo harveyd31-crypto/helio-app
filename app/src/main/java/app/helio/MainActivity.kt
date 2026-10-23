@@ -50,6 +50,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        CrashCatcher.install(this)
+        CrashCatcher.take(this)?.let { crash ->
+            // The last launch crashed: show what happened instead of trying again blindly.
+            setContent { HelioTheme { CrashScreen(crash) { recreate() } } }
+            return
+        }
 
         lifecycleScope.launch {
             WindowInfoTracker.getOrCreate(this@MainActivity).windowLayoutInfo(this@MainActivity).collect { info ->
@@ -194,3 +200,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
