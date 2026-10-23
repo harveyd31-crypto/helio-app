@@ -90,7 +90,7 @@ import app.helio.ui.theme.num
 import java.time.format.DateTimeFormatter
 
 enum class FoldMode { Cover, Open, Tabletop }
-enum class Detail { Vo2, Age, Sleep, Test, Picker, Recording, Workout, Charge }
+enum class Detail { Vo2, Age, Sleep, Test, Picker, Recording, Workout }
 
 private val popSpring = spring<IntSize>(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
 
@@ -155,7 +155,6 @@ fun HomeScreen(
             Detail.Vo2 -> Vo2Detail(vo2, profileMissing = !profile.complete, onOpenTest = { detail = Detail.Test }) { detail = null }
             Detail.Age -> AgeDetail(bodyAge, sample = sample && !profile.complete) { detail = null }
             Detail.Sleep -> app.helio.ui.components.SleepDetail(days, selected) { detail = null }
-            Detail.Charge -> app.helio.ui.components.ChargeDetail(day) { detail = null }
             Detail.Picker -> app.helio.ui.components.ActivityPicker(live.status, onPick = { onStartWorkout(it); detail = Detail.Recording }) { detail = null }
             Detail.Recording -> activeWorkout?.let { a ->
                 app.helio.ui.components.RecordingView(
@@ -294,7 +293,6 @@ private fun OverviewList(
     onDetail: (Detail) -> Unit,
 ) {
     app.helio.ui.components.IllnessBanner(day.extras)
-    app.helio.ui.components.ChargeRow(day.extras) { onDetail(Detail.Charge) }
     WeeklyGoalCard(goal)
     app.helio.ui.components.DailyTiles(day.extras)
     day.activities.forEach { a -> ActivityRow(a) { if (a.hr.size > 10) onOpenWorkout(a.toWorkout()) } }
