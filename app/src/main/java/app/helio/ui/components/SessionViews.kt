@@ -1,5 +1,6 @@
 package app.helio.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,26 +25,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.helio.data.MuayThaiKind
+import app.helio.data.SessionKind
 import app.helio.data.Workout
-import app.helio.logic.MuayThaiProgress
+import app.helio.data.WorkoutMath
+import app.helio.data.WorkoutType
+import app.helio.logic.SportProgress
+import app.helio.logic.TennisAnalysis
 import app.helio.ui.theme.HelioColors
 import app.helio.ui.theme.body
 import app.helio.ui.theme.cap
 import app.helio.ui.theme.card
 import app.helio.ui.theme.num
 
-/** One tap after a Muay Thai session: what was it? Shown once, at the top of the session detail. */
+/** One tap after a session: what was it? Shown at the top of the session detail until answered. */
 @Composable
-fun KindPrompt(onPick: (MuayThaiKind) -> Unit) {
+fun KindPrompt(sport: WorkoutType, onPick: (SessionKind) -> Unit) {
     Column(Modifier.fillMaxWidth().card().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("WHAT WAS THIS SESSION?", style = cap(12.sp, Color.White))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MuayThaiKind.entries.forEach { k ->
+            SessionKind.forSport(sport).forEach { k ->
                 Box(
                     Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(23.dp)).background(HelioColors.StrainBadge).clickable { onPick(k) },
                     contentAlignment = Alignment.Center,
@@ -55,30 +62,28 @@ fun KindPrompt(onPick: (MuayThaiKind) -> Unit) {
 }
 
 @Composable
-fun KindBadge(k: MuayThaiKind, onChange: () -> Unit) {
+fun KindBadge(k: SessionKind, onChange: () -> Unit) {
     Text(
         k.label.uppercase() + "  ✎", style = cap(11.sp, Color.White),
         modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x1FFFFFFF)).clickable(onClick = onChange).padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }
 
-/**
- * Muay Thai progress by month or quarter: rest recovery (conditioning), time in the red (intensity),
- * fade (holding output to the last round), strain and number of sessions, per kind of session.
- */
+/** Progress by month or quarter for one sport, filterable by kind of session. */
 @Composable
-fun MuayThaiProgressCard(all: List<Workout>, kindOf: (Workout) -> MuayThaiKind?, hrMax: Double, initialKind: MuayThaiKind? = null) {
+fun SportProgressCard(sport: WorkoutType, all: List<Workout>, kindOf: (Workout) -> SessionKind?, hrMax: Double, initialKind: SessionKind? = null) {
     var kind by remember(initialKind) { mutableStateOf(initialKind) }
-    var period by remember { mutableStateOf(MuayThaiProgress.Period.Month) }
-    val b = remember(all, kind, period, hrMax) { MuayThaiProgress.buckets(all, kind, kindOf, hrMax, period) }
+    var period by remember { mutableStateOf(SportProgress.Period.Month) }
+    val specs = SportProgress.specsFor(sport)
+    val b = remember(all, kind, period, hrMax, sport) { SportProgress.buckets(all, sport, kind, kindOf, period, SportProgress.measureFor(sport, hrMax)) }
 
     Column(Modifier.fillMaxWidth().card().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("MUAY THAI PROGRESS", style = cap(13.sp, Color.White), modifier = Modifier.weight(1f))
+            Text("${sport.label.uppercase()} PROGRESS", style = cap(13.sp, Color.White), modifier = Modifier.weight(1f))
             Row(Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF))) {
-                MuayThaiProgress.Period.entries.forEach { p ->
+                SportProgress.Period.entries.forEach { p ->
                     Text(
-                        if (p == MuayThaiProgress.Period.Month) "MONTH" else "QUARTER",
+                        if (p == SportProgress.Period.Month) "MONTH" else "QUARTER",
                         style = cap(10.sp, if (p == period) Color.Black else Color.White),
                         modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (p == period) Color.White else Color.Transparent)
                             .clickable { period = p }.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -87,7 +92,7 @@ fun MuayThaiProgressCard(all: List<Workout>, kindOf: (Workout) -> MuayThaiKind?,
             }
         }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (listOf<MuayThaiKind?>(null) + MuayThaiKind.entries).forEach { k ->
+            (listOf<SessionKind?>(null) + SessionKind.forSport(sport)).forEach { k ->
                 val on = k == kind
                 Text(
                     (k?.label ?: "All").uppercase(), style = cap(11.sp, if (on) Color.Black else Color.White),
@@ -97,21 +102,18 @@ fun MuayThaiProgressCard(all: List<Workout>, kindOf: (Workout) -> MuayThaiKind?,
             }
         }
         if (b.all { it.sessions == 0 }) {
-            Text("No ${kind?.label?.lowercase() ?: "Muay Thai"} sessions in this period yet.", style = body(13.sp, HelioColors.TextMuted))
+            Text("No ${kind?.label?.lowercase() ?: sport.label.lowercase()} sessions in this period yet.", style = body(13.sp, HelioColors.TextMuted))
         } else {
-            Metric("REST RECOVERY", "bpm drop in the first minute of rest", b, { it.recovery?.toDouble() }, { "−${it.toInt()}" }, higherIsBetter = true)
-            Metric("TIME IN THE RED", "minutes at 90 %+ per session", b, { it.redMin }, { String.format("%.1f", it) }, higherIsBetter = null)
-            Metric("FADE", "last round vs best round", b, { it.fade?.toDouble() }, { "${if (it >= 0) "+" else ""}${it.toInt()}%" }, higherIsBetter = true)
-            Metric("STRAIN", "average per session", b, { it.strain }, { String.format("%.1f", it) }, higherIsBetter = null)
-            Metric("SESSIONS", "", b, { it.sessions.toDouble().takeIf { s -> s > 0 } }, { it.toInt().toString() }, higherIsBetter = null)
+            specs.forEach { sp -> Metric(sp.title, sp.sub, b, { it.values[sp.key] }, sp.fmt, sp.higherIsBetter) }
+            Metric("SESSIONS", "", b, { it.sessions.toDouble().takeIf { s -> s > 0 } }, { it.toInt().toString() }, null)
         }
     }
 }
 
 @Composable
 private fun Metric(
-    title: String, sub: String, b: List<MuayThaiProgress.Bucket>,
-    value: (MuayThaiProgress.Bucket) -> Double?, fmt: (Double) -> String, higherIsBetter: Boolean?,
+    title: String, sub: String, b: List<SportProgress.Bucket>,
+    value: (SportProgress.Bucket) -> Double?, fmt: (Double) -> String, higherIsBetter: Boolean?,
 ) {
     val vals = b.map(value)
     val present = vals.withIndex().filter { it.value != null }
@@ -140,11 +142,11 @@ private fun Metric(
         }
         Row(Modifier.fillMaxWidth().height(38.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
             vals.forEachIndexed { i, v ->
-                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom, horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
                     val f = if (v == null) 0f else if (hi - lo < 1e-6) 0.6f else (0.25 + 0.75 * (v - lo) / (hi - lo)).toFloat()
                     Box(
-                        Modifier.fillMaxWidth().fillMaxHeight(f.coerceAtLeast(0.04f))
-                            .clip(RoundedCornerShape(3.dp)).background(if (v == null) Color(0x0FFFFFFF) else if (i == latest.index) HelioColors.Strain else Color(0x40FFFFFF)),
+                        Modifier.fillMaxWidth().fillMaxHeight(f.coerceAtLeast(0.04f)).clip(RoundedCornerShape(3.dp))
+                            .background(if (v == null) Color(0x0FFFFFFF) else if (i == latest.index) HelioColors.Strain else Color(0x40FFFFFF)),
                     )
                 }
             }
@@ -152,5 +154,60 @@ private fun Metric(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             b.forEach { Text(it.label, style = cap(9.sp), modifier = Modifier.weight(1f)) }
         }
+    }
+}
+
+/** Tennis session breakdown: hard efforts, recovery between points, match intensity, holding up, 15-min blocks. */
+@Composable
+fun TennisCard(r: TennisAnalysis.Result, hrMax: Double) {
+    Column(Modifier.fillMaxWidth().card().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("SESSION ANALYSIS", style = cap(13.sp, Color.White), modifier = Modifier.weight(1f))
+            Text("avg ${r.avgPctMax}% of max", style = cap(11.sp))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Tile("${r.efforts.size}", "Hard efforts · ${r.perHour.toInt()}/h", Color.White, Modifier.weight(1f))
+            Tile(r.recovery30?.let { "−$it bpm" } ?: "—", "Recovery in 30 s", r.recovery30?.let { if (it >= 15) HelioColors.RecGreen else if (it >= 10) Color.White else HelioColors.RecYellow } ?: Color.White, Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Tile("${r.matchPct}%", "Match intensity (80 %+)", zoneColors[4], Modifier.weight(1f))
+            val held = (r.holdPct ?: 0) >= -3
+            Tile(
+                r.holdPct?.let { if (held) "HELD" else "DROPPED" } ?: "—",
+                r.holdPct?.let { "Last third ${if (it >= 0) "+" else ""}$it% vs first" } ?: "Session too short",
+                if (r.holdPct == null) Color.White else if (held) HelioColors.RecGreen else HelioColors.RecYellow, Modifier.weight(1f),
+            )
+        }
+        Text("Longest hard spell ${r.longestHardS / 60}:${String.format("%02d", r.longestHardS % 60)}", style = body(12.sp, HelioColors.TextMuted))
+        if (r.blocks.size >= 2) {
+            Text("EVERY 15 MINUTES", style = cap(11.sp, Color.White))
+            val floors = WorkoutMath.floors(hrMax)
+            Canvas(Modifier.fillMaxWidth().height(90.dp)) {
+                val n = r.blocks.size
+                val gap = 6.dp.toPx()
+                val w = (size.width - gap * (n - 1)) / n
+                val lo = 0.5 * hrMax; val hi = hrMax
+                r.blocks.forEachIndexed { i, b ->
+                    val x = i * (w + gap)
+                    fun y(v: Double) = size.height - ((v - lo) / (hi - lo)).toFloat().coerceIn(0.03f, 1f) * size.height
+                    val z = floors.count { b.avgHr >= it }
+                    drawRoundRect(zoneColors[z], Offset(x, y(b.avgHr.toDouble())), Size(w, size.height - y(b.avgHr.toDouble())), CornerRadius(4.dp.toPx()))
+                    drawLine(Color.White, Offset(x, y(b.peakHr.toDouble())), Offset(x + w, y(b.peakHr.toDouble())), 2.dp.toPx())
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                r.blocks.forEach { b -> Text("${b.startMin}′ · ${b.hardPct}%", style = cap(9.sp), modifier = Modifier.weight(1f)) }
+            }
+            Text("Bar = average heart rate, line = peak, % = time at match intensity.", style = body(11.sp, HelioColors.TextMuted))
+        }
+        Text("Hard efforts are your intense rallies and games, found from heart-rate surges. Faster recovery between them means better tennis fitness.", style = body(12.sp, HelioColors.TextMuted))
+    }
+}
+
+@Composable
+private fun Tile(v: String, label: String, color: Color, modifier: Modifier) {
+    Column(modifier.background(Color(0xFF2A2F35), RoundedCornerShape(14.dp)).padding(12.dp)) {
+        Text(v, style = num(20.sp, FontWeight.Bold, color))
+        Text(label, style = body(12.sp, HelioColors.TextMuted))
     }
 }

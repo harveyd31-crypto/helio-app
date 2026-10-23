@@ -54,6 +54,7 @@ object SampleData {
         val t0 = date.atTime(start).atZone(zone).toInstant().toEpochMilli()
         val n = (minutes * 12).toInt()
         if (name == "Muay Thai") return sampleMuayThai(t0, start, minutes, s)
+        if (name == "Tennis") return sampleTennis(t0, start, minutes, s)
         val (base, swing, period) = when (name) {
             "Tennis" -> Triple(138.0, 12.0, 14.0)
             "Cross" -> Triple(152.0, 14.0, 20.0)
@@ -67,6 +68,40 @@ object SampleData {
         }
         val strain = Strain.fromHeartRate(hr, 56.0, 188.0)
         return Activity(name, (strain * 10).toInt() / 10.0, start, start.plusMinutes(minutes), t0, t0 + n * 5000L, hr)
+    }
+
+    /**
+     * Tennis: 10-min warm-up rally, then games of points (5–25 s of play, ~20 s between points) with a
+     * 90 s changeover every two games. Recovery between points slowly improves over the months.
+     */
+    private fun sampleTennis(t0: Long, start: LocalTime, minutes: Long, s: Int): Activity {
+        val end = t0 + minutes * 60_000L
+        val rnd = java.util.Random(s.toLong() * 7919)
+        val back = s - 3
+        val hr = mutableListOf<Pair<Long, Int>>()
+        var bpm = 95.0
+        var t = t0
+        var phaseEnd = t0 + 10 * 60_000L
+        var playing = true
+        var point = 0
+        while (t <= end) {
+            if (t >= phaseEnd && t >= t0 + 10 * 60_000L) {
+                if (playing) { playing = false; point++; phaseEnd = t + if (point % 12 == 0) 90_000L else 20_000L }
+                else { playing = true; phaseEnd = t + (5 + rnd.nextInt(if (rnd.nextInt(6) == 0) 30 else 14)) * 1000L }
+            }
+            val late = (t - t0).toDouble() / (end - t0)
+            val target = when {
+                t < t0 + 10 * 60_000L -> 112.0 + 18 * (t - t0) / 600_000.0
+                playing -> 168.0 + (s % 4) - 3 * late
+                else -> 132.0 + back * 0.06
+            }
+            bpm += (target - bpm) * (if (target > bpm) 0.45 else 0.30 - back * 0.0008)
+            hr += t to (bpm + rnd.nextInt(5) - 2).toInt()
+            t += 5000L
+        }
+        val strain = Strain.fromHeartRate(hr, 56.0, 188.0)
+        val kind = listOf("Match", "Practice", "Match", "Lesson")[s % 4]
+        return Activity("Tennis", (strain * 10).toInt() / 10.0, start, start.plusMinutes(minutes), t0, end, hr, emptyList(), kind)
     }
 
     /** Warm-up, then 3:00 rounds with 1:00 rest (heart rate climbs each round, drops in the rest, fades a little late on), cool-down. */

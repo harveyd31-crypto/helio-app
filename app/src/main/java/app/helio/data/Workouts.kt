@@ -8,10 +8,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** What a Muay Thai session was, asked once when it ends. */
-enum class MuayThaiKind(val label: String) { Pads("Pads / bag"), Sparring("Sparring"), Both("Both") }
-
 enum class WorkoutType(val label: String) { MuayThai("Muay Thai"), Running("Run"), Tennis("Tennis"), CrossFit("Cross"), Other("Workout") }
+
+/** What a session was, asked with one tap when it ends, so progress compares like with like. */
+enum class SessionKind(val label: String, val sport: WorkoutType) {
+    Pads("Pads / bag", WorkoutType.MuayThai), Sparring("Sparring", WorkoutType.MuayThai), Both("Both", WorkoutType.MuayThai),
+    Match("Match", WorkoutType.Tennis), Practice("Practice", WorkoutType.Tennis), Lesson("Lesson", WorkoutType.Tennis);
+
+    companion object {
+        fun forSport(t: WorkoutType) = entries.filter { it.sport == t }
+    }
+}
 
 /** An activity recorded in the app from the Helio's live heart rate. */
 data class Workout(
@@ -102,13 +109,13 @@ object Workouts {
     private var lastSample = 0L
 
     /** Session kind by workout start time; works for in-app and strap-synced sessions alike. */
-    private val _tags = MutableStateFlow<Map<Long, MuayThaiKind>>(emptyMap())
-    val tags: StateFlow<Map<Long, MuayThaiKind>> = _tags.asStateFlow()
+    private val _tags = MutableStateFlow<Map<Long, SessionKind>>(emptyMap())
+    val tags: StateFlow<Map<Long, SessionKind>> = _tags.asStateFlow()
 
-    fun kindOf(w: Workout, tags: Map<Long, MuayThaiKind> = _tags.value): MuayThaiKind? =
-        tags[w.start] ?: w.tag?.let { t -> MuayThaiKind.entries.firstOrNull { it.name == t } }
+    fun kindOf(w: Workout, tags: Map<Long, SessionKind> = _tags.value): SessionKind? =
+        tags[w.start] ?: w.tag?.let { t -> SessionKind.entries.firstOrNull { it.name == t } }
 
-    fun setKind(ctx: Context, w: Workout, k: MuayThaiKind) {
+    fun setKind(ctx: Context, w: Workout, k: SessionKind) {
         val m = _tags.value + (w.start to k)
         _tags.value = m
         val o = JSONObject(); m.forEach { (t, v) -> o.put(t.toString(), v.name) }
@@ -169,7 +176,7 @@ object Workouts {
     fun load(ctx: Context) {
         _tags.value = try {
             val o = JSONObject(ctx.getSharedPreferences("helio_workouts", Context.MODE_PRIVATE).getString("tags", "{}") ?: "{}")
-            o.keys().asSequence().mapNotNull { k -> runCatching { k.toLong() to MuayThaiKind.valueOf(o.getString(k)) }.getOrNull() }.toMap()
+            o.keys().asSequence().mapNotNull { k -> runCatching { k.toLong() to SessionKind.valueOf(o.getString(k)) }.getOrNull() }.toMap()
         } catch (e: Exception) { emptyMap() }
         val raw = ctx.getSharedPreferences("helio_workouts", Context.MODE_PRIVATE).getString("all", "[]") ?: "[]"
         _all.value = try {

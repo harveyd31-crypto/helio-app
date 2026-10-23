@@ -177,8 +177,8 @@ fun HomeScreen(
                 app.helio.ui.components.WorkoutDetail(
                     w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null, hrMax = vo2.hrMax,
                     kind = kind, onKind = { app.helio.data.Workouts.setKind(ctx, w, it) },
-                    progress = if (w.type == app.helio.data.WorkoutType.MuayThai) ({
-                        app.helio.ui.components.MuayThaiProgressCard(allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax, kind)
+                    progress = if (app.helio.data.SessionKind.forSport(w.type).isNotEmpty()) ({
+                        app.helio.ui.components.SportProgressCard(w.type, allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax, kind)
                     }) else null,
                 ) { detail = null }
             } ?: Text("No activity selected.", style = body(14.sp))
@@ -243,8 +243,10 @@ fun HomeScreen(
                                 2 -> RecoveryTab(day)
                                 3 -> {
                                     StrainDetailTab(days, selected, goal, dayWorkouts, vo2.hrMax) { openWorkout = it; detail = Detail.Workout }
-                                    if (allWorkouts.any { it.type == app.helio.data.WorkoutType.MuayThai }) {
-                                        app.helio.ui.components.MuayThaiProgressCard(allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax)
+                                    listOf(app.helio.data.WorkoutType.MuayThai, app.helio.data.WorkoutType.Tennis).forEach { sport ->
+                                        if (allWorkouts.any { it.type == sport }) {
+                                            app.helio.ui.components.SportProgressCard(sport, allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax)
+                                        }
                                     }
                                 }
                             }

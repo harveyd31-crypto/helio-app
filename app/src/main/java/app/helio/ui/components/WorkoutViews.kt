@@ -48,6 +48,7 @@ import app.helio.data.Workout
 import app.helio.data.WorkoutMath
 import app.helio.data.WorkoutStats
 import app.helio.data.WorkoutType
+import SessionKind
 import app.helio.data.Workouts
 import app.helio.logic.Strain
 import app.helio.ui.theme.HelioColors
@@ -155,7 +156,7 @@ fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Do
 @Composable
 fun WorkoutDetail(
     w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDelete: (() -> Unit)?, hrMax: Double = 190.0,
-    kind: app.helio.data.MuayThaiKind? = null, onKind: ((app.helio.data.MuayThaiKind) -> Unit)? = null,
+    kind: SessionKind? = null, onKind: ((SessionKind) -> Unit)? = null,
     progress: (@Composable () -> Unit)? = null,
     onClose: () -> Unit,
 ) {
@@ -172,13 +173,14 @@ fun WorkoutDetail(
             }
             if (kind != null && onKind != null && !changing) KindBadge(kind) { changing = true }
         }
-        if (w.type == WorkoutType.MuayThai && onKind != null && (kind == null || changing)) KindPrompt { onKind(it); changing = false }
+        if (SessionKind.forSport(w.type).isNotEmpty() && onKind != null && (kind == null || changing)) KindPrompt(w.type) { onKind(it); changing = false }
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             BigStat(String.format("%.1f", s.strain), "ACTIVITY STRAIN", HelioColors.Strain, avg?.map { it.strain }?.average()?.let { String.format("%.1f", it) })
             BigStat(String.format("%,d", s.calories), "CALORIES", Color.White, avg?.map { it.calories }?.average()?.let { String.format("%,d", it.toInt()) })
         }
         HrChart(w)
         app.helio.logic.RoundAnalysis.analyse(w, hrMax)?.let { RoundsCard(it, hrMax) }
+        if (w.type == WorkoutType.Tennis) app.helio.logic.TennisAnalysis.analyse(w, hrMax)?.let { TennisCard(it, hrMax) }
         Zones(s, history)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
             Text("KEY STATISTICS", style = cap(13.sp, Color.White))
