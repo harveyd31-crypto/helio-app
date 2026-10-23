@@ -76,7 +76,7 @@ fun BoxScope.ActivityFab(haze: HazeState, onPick: (WorkoutType) -> Unit) {
     if (scrim > 0.01f) {
         Box(
             Modifier.fillMaxSize()
-                .hazeEffect(haze) { blurRadius = (8 * scrim).dp; tints = listOf(HazeTint(Color(0xFF05080A).copy(alpha = 0.38f * scrim))) }
+                .hazeEffect(haze) { backgroundColor = HelioColors.Bg; blurRadius = (8 * scrim).dp; tints = listOf(HazeTint(Color(0xFF05080A).copy(alpha = 0.38f * scrim))) }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { open = false },
         )
     }
@@ -132,6 +132,7 @@ fun BoxScope.ActivityFab(haze: HazeState, onPick: (WorkoutType) -> Unit) {
 private fun Modifier.glass(haze: HazeState, shape: Shape, blue: Boolean): Modifier = this
     .clip(shape)
     .hazeEffect(haze) {
+        backgroundColor = HelioColors.BgMid
         blurRadius = 18.dp
         noiseFactor = 0.06f
         tints = listOf(HazeTint(if (blue) Color(0xFF2E8FE6).copy(alpha = 0.26f) else Color.White.copy(alpha = 0.10f)))
