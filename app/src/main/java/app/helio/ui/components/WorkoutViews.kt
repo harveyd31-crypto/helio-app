@@ -48,7 +48,7 @@ import app.helio.data.Workout
 import app.helio.data.WorkoutMath
 import app.helio.data.WorkoutStats
 import app.helio.data.WorkoutType
-import SessionKind
+import app.helio.data.SessionKind
 import app.helio.data.Workouts
 import app.helio.logic.Strain
 import app.helio.ui.theme.HelioColors
