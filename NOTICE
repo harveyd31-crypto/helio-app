@@ -1,0 +1,10 @@
+Helio — personal app for the Amazfit Helio Strap.
+
+Includes, unmodified unless noted, the modules `strap-protocol` and `strap-science` and parts of the
+Android app (local store, Bluetooth link) from Ridge by TheCommishDeuce
+(https://github.com/TheCommishDeuce/ridge-helio-strap), licensed GNU AGPL-3.0-or-later
+(see LICENSE-AGPL-3.0.txt). Ridge in turn learned the Zepp OS protocol from Gadgetbridge
+(AGPL-3.0-or-later). Because of this, Helio as a whole is under the AGPL-3.0-or-later.
+
+Stress curve and Pulse Age follow Pulse Mobile (github.com/adityaongit/pulse-mobile),
+PolyForm Noncommercial 1.0.0: personal, non-commercial use.

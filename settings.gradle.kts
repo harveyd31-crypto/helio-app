@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Helio"
 include(":app")
+include(":strap-protocol")
+include(":strap-science")
