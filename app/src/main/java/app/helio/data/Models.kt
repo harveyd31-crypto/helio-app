@@ -80,6 +80,48 @@ data class DaySummary(
     /** Highest heart rate of the day (second-highest minute, to ignore spikes). */
     val maxHr: Int? = null,
     val runs: List<RunEffort> = emptyList(),
+    /** Extra numbers available when the strap syncs directly (Ridge's science). */
+    val extras: StrapExtras? = null,
+)
+
+data class RecoveryPart(val key: String, val sub: Int, val weight: Double, val value: Double, val baseline: Double?)
+
+/** What the direct strap sync adds on top of the basics. Null fields = not measured / withheld. */
+data class StrapExtras(
+    val charge: Int? = null,
+    val chargeAtWake: Int? = null,
+    val chargeHigh: Int? = null,
+    val chargeLow: Int? = null,
+    val chargeRecharged: Double? = null,
+    val chargeActivity: Double? = null,
+    val chargeStress: Double? = null,
+    val chargeLiving: Double? = null,
+    /** Charge every 10 minutes: (epoch millis, 0–100). */
+    val chargeCurve: List<Pair<Long, Double>> = emptyList(),
+    val recoveryParts: List<RecoveryPart> = emptyList(),
+    val recoveryWithheld: String? = null,
+    val sleepNeedMin: Int? = null,
+    val sleepDebtMin: Int? = null,
+    val sleepRegularity: Double? = null,
+    val sleepEfficiency: Double? = null,
+    val deviceSleepScore: Int? = null,
+    val breathingPerHour: Double? = null,
+    val breathingUsual: Double? = null,
+    val spo2Night: Double? = null,
+    val spo2Min: Double? = null,
+    val steps: Int? = null,
+    val stepsUsualByNow: Int? = null,
+    val activeCalories: Int? = null,
+    val totalCalories: Int? = null,
+    val distanceKm: Double? = null,
+    val pai: Int? = null,
+    val paiToday: Int? = null,
+    val strapStress: Int? = null,
+    val strainWithheld: String? = null,
+    val illness: String? = null,
+    val illnessSevere: Boolean = false,
+    val cardioLoad: Double? = null,
+    val typicalLoad: Double? = null,
 )
 
 /** A steady run: enough to place one point on your heart-rate-vs-speed line. */
@@ -132,4 +174,4 @@ data class LiveState(
     val stressAtStart: Double? = null,
 )
 
-enum class DataSource { Sample, HealthConnect }
+enum class DataSource { Sample, HealthConnect, Strap }

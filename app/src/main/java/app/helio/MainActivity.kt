@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
         Repository.loadTests(this)
         app.helio.data.Workouts.load(this)
         lifecycleScope.launch { Repository.refresh(this@MainActivity) }
-        if (LiveHeartRateService.rememberedDevice(this) != null && LiveHeartRateService.hasPermissions(this)) {
+        if ((LiveHeartRateService.rememberedDevice(this) != null || app.helio.strap.StrapManager.pairing(this) != null) && LiveHeartRateService.hasPermissions(this)) {
             LiveHeartRateService.start(this)
         }
 
@@ -82,12 +82,6 @@ class MainActivity : ComponentActivity() {
         val activeWorkout by app.helio.data.Workouts.active.collectAsState()
         val testState by app.helio.ble.RunTestService.state.collectAsState()
         val scope = rememberCoroutineScope()
-        var editProfile by remember { mutableStateOf(false) }
-        if (editProfile) ProfileDialog(profile, onSave = {
-            Repository.saveProfile(this@MainActivity, it)
-            editProfile = false
-            scope.launch { Repository.refresh(this@MainActivity) }
-        }, onDismiss = { editProfile = false })
         var selected by remember { mutableIntStateOf(-1) }
         if (selected !in days.indices) selected = days.lastIndex
         var forceLive by remember { mutableStateOf(false) }
@@ -122,6 +116,23 @@ class MainActivity : ComponentActivity() {
                 LiveHeartRateService.start(this@MainActivity)
             } else btLauncher.launch(perms.toTypedArray())
         }
+        var editProfile by remember { mutableStateOf(false) }
+        if (editProfile) {
+            val (mac0, key0) = app.helio.strap.StrapManager.pairingText(this@MainActivity)
+            ProfileDialog(profile, mac0, key0, onSave = { p, mac, key ->
+                val err = app.helio.strap.StrapManager.savePairing(this@MainActivity, mac, key)
+                if (err == null) {
+                    Repository.saveProfile(this@MainActivity, p)
+                    editProfile = false
+                    if (app.helio.strap.StrapManager.pairing(this@MainActivity) != null && (mac != mac0 || key != key0)) {
+                        LiveHeartRateService.stop(this@MainActivity)
+                        connect()
+                    }
+                    scope.launch { Repository.refresh(this@MainActivity) }
+                }
+                err
+            }, onDismiss = { editProfile = false })
+        }
 
         val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
             if (res[Manifest.permission.ACCESS_FINE_LOCATION] == true) app.helio.ble.RunTestService.start(this@MainActivity)
@@ -139,7 +150,7 @@ class MainActivity : ComponentActivity() {
                 onClose = { forceLive = false },
                 onConnect = { connect() },
                 onDisconnect = { LiveHeartRateService.stop(this@MainActivity) },
-                onSync = { scope.launch { Repository.refresh(this@MainActivity) } },
+                onSync = { app.helio.strap.StrapManager.syncNow(); scope.launch { Repository.refresh(this@MainActivity) } },
             )
         }
 

@@ -95,6 +95,7 @@ class LiveHeartRateService : Service() {
     private var gatt: BluetoothGatt? = null
     private var scanning = false
     private var loopJob: Job? = null
+    private var strapJob: Job? = null
     private var retry = 0
     private val samples = ArrayDeque<Pair<Long, Int>>()
     private val stressHist = ArrayDeque<Pair<Long, Double>>()
@@ -117,7 +118,17 @@ class LiveHeartRateService : Service() {
         if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIF_LIVE, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         else startForeground(NOTIF_LIVE, n)
         if (!hasPermissions(this)) { shutdown(); return START_NOT_STICKY }
-        if (gatt == null && !scanning) connectOrScan()
+        if (app.helio.strap.StrapManager.pairing(this) != null) {
+            // Paired directly: one authenticated link carries live HR and the history sync.
+            if (strapJob == null) strapJob = scope.launch {
+                app.helio.strap.StrapManager.run(
+                    this@LiveHeartRateService,
+                    onStatus = { s, name -> setStatus(s, name) },
+                    onHeartRate = { bpm -> onBpm(bpm) },
+                    afterSync = { Repository.refresh(applicationContext) },
+                )
+            }
+        } else if (gatt == null && !scanning) connectOrScan()
         if (loopJob == null) loopJob = scope.launch { stressLoop() }
         return START_STICKY
     }
@@ -215,8 +226,9 @@ class LiveHeartRateService : Service() {
         }
     }
 
-    private fun onBeat(value: ByteArray) {
-        val hr = parseHr(value) ?: return
+    private fun onBeat(value: ByteArray) { parseHr(value)?.let { onBpm(it) } }
+
+    private fun onBpm(hr: Int) {
         if (hr !in 25..230) return
         val now = System.currentTimeMillis()
         synchronized(samples) {
@@ -311,6 +323,8 @@ class LiveHeartRateService : Service() {
         gatt = null
         loopJob?.cancel()
         loopJob = null
+        strapJob?.cancel()
+        strapJob = null
         Repository.live.value = Repository.live.value.copy(status = LinkStatus.Off, hr = null)
         WidgetStore.saveLive(this, null, null, false)
         scope.launch { WidgetStore.refreshWidgets(this@LiveHeartRateService) }

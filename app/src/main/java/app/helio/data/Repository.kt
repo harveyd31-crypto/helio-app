@@ -80,6 +80,19 @@ object Repository {
     /** Reloads days from Health Connect when it is available and allowed; keeps sample data otherwise. */
     suspend fun refresh(ctx: Context) {
         val app = ctx.applicationContext
+        // 1. Direct from the strap (Ridge protocol + science), when paired and synced
+        if (app.helio.strap.StrapScience.hasData(app)) {
+            val d = try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { app.helio.strap.StrapScience.days(app, _profile.value) }
+            } catch (e: Exception) { android.util.Log.w("helio", "strap science failed", e); emptyList() }
+            if (d.isNotEmpty()) {
+                _days.value = d
+                _source.value = DataSource.Strap
+                WidgetStore.saveDay(app, d.last())
+                return
+            }
+        }
+        // 2. Health Connect (what Zepp writes), 3. sample data
         if (HealthConnectSource.available(app)) {
             val hc = HealthConnectSource(app)
             val allowed = try { hc.hasHeartRate() } catch (e: Exception) { false }
