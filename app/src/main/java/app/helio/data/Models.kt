@@ -20,6 +20,8 @@ data class Activity(
     val hr: List<Pair<Long, Int>> = emptyList(),
     /** Work rounds (start, end epoch millis) when the round timer was used. */
     val rounds: List<Pair<Long, Long>> = emptyList(),
+    /** Muay Thai session kind (sample data only; real ones are tagged in [app.helio.data.Workouts]). */
+    val tag: String? = null,
 )
 
 enum class Stage { Awake, Rem, Light, Deep }

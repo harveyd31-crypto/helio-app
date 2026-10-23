@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** What a Muay Thai session was, asked once when it ends. */
+enum class MuayThaiKind(val label: String) { Pads("Pads / bag"), Sparring("Sparring"), Both("Both") }
+
 enum class WorkoutType(val label: String) { MuayThai("Muay Thai"), Running("Run"), Tennis("Tennis"), CrossFit("Cross"), Other("Workout") }
 
 /** An activity recorded in the app from the Helio's live heart rate. */
@@ -19,6 +22,7 @@ data class Workout(
     val hr: List<Pair<Long, Int>>,
     /** Work rounds from the round timer: (start, end) epoch millis. */
     val rounds: List<Pair<Long, Long>> = emptyList(),
+    val tag: String? = null,
 )
 
 data class WorkoutStats(
@@ -84,6 +88,7 @@ fun Activity.toWorkout(): Workout = Workout(
     },
     hr,
     rounds,
+    tag,
 )
 
 /** Records the activity in progress and keeps finished ones on the phone. */
@@ -95,6 +100,25 @@ object Workouts {
     private val _all = MutableStateFlow<List<Workout>>(emptyList())
     val all: StateFlow<List<Workout>> = _all.asStateFlow()
     private var lastSample = 0L
+
+    /** Session kind by workout start time; works for in-app and strap-synced sessions alike. */
+    private val _tags = MutableStateFlow<Map<Long, MuayThaiKind>>(emptyMap())
+    val tags: StateFlow<Map<Long, MuayThaiKind>> = _tags.asStateFlow()
+
+    fun kindOf(w: Workout, tags: Map<Long, MuayThaiKind> = _tags.value): MuayThaiKind? =
+        tags[w.start] ?: w.tag?.let { t -> MuayThaiKind.entries.firstOrNull { it.name == t } }
+
+    fun setKind(ctx: Context, w: Workout, k: MuayThaiKind) {
+        val m = _tags.value + (w.start to k)
+        _tags.value = m
+        val o = JSONObject(); m.forEach { (t, v) -> o.put(t.toString(), v.name) }
+        ctx.getSharedPreferences("helio_workouts", Context.MODE_PRIVATE).edit().putString("tags", o.toString()).apply()
+    }
+
+    /** The activity that just ended, so the detail opens wherever it was ended from. */
+    private val _finished = MutableStateFlow<Workout?>(null)
+    val finished: StateFlow<Workout?> = _finished.asStateFlow()
+    fun consumeFinished() { _finished.value = null }
 
     fun start(type: WorkoutType) {
         lastSample = 0
@@ -121,6 +145,7 @@ object Workouts {
         if (a.hr.size < 12) return null
         val w = Workout(a.start, System.currentTimeMillis(), a.type, a.hr, a.rounds)
         save(ctx, _all.value + w)
+        _finished.value = w
         return w
     }
 
@@ -142,6 +167,10 @@ object Workouts {
     }
 
     fun load(ctx: Context) {
+        _tags.value = try {
+            val o = JSONObject(ctx.getSharedPreferences("helio_workouts", Context.MODE_PRIVATE).getString("tags", "{}") ?: "{}")
+            o.keys().asSequence().mapNotNull { k -> runCatching { k.toLong() to MuayThaiKind.valueOf(o.getString(k)) }.getOrNull() }.toMap()
+        } catch (e: Exception) { emptyMap() }
         val raw = ctx.getSharedPreferences("helio_workouts", Context.MODE_PRIVATE).getString("all", "[]") ?: "[]"
         _all.value = try {
             val arr = JSONArray(raw)

@@ -153,8 +153,14 @@ fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Do
 
 /** Finished activity, in the style of the screenshots: strain, HR chart, zones with typical range, key stats vs 30 days. */
 @Composable
-fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDelete: (() -> Unit)?, hrMax: Double = 190.0, onClose: () -> Unit) {
+fun WorkoutDetail(
+    w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDelete: (() -> Unit)?, hrMax: Double = 190.0,
+    kind: app.helio.data.MuayThaiKind? = null, onKind: ((app.helio.data.MuayThaiKind) -> Unit)? = null,
+    progress: (@Composable () -> Unit)? = null,
+    onClose: () -> Unit,
+) {
     val avg = if (history.isEmpty()) null else history
+    var changing by remember(w.start) { androidx.compose.runtime.mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("‹", style = num(30.sp, FontWeight.Medium), modifier = Modifier.clickable(onClick = onClose).padding(end = 12.dp))
@@ -164,7 +170,9 @@ fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDe
                 Text(w.type.label.uppercase(), style = cap(15.sp, Color.White))
                 Text("${local(w.start).format(md)} ${local(w.start).format(hm)} to ${local(w.end).format(hm)}", style = body(13.sp, HelioColors.TextMuted))
             }
+            if (kind != null && onKind != null && !changing) KindBadge(kind) { changing = true }
         }
+        if (w.type == WorkoutType.MuayThai && onKind != null && (kind == null || changing)) KindPrompt { onKind(it); changing = false }
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             BigStat(String.format("%.1f", s.strain), "ACTIVITY STRAIN", HelioColors.Strain, avg?.map { it.strain }?.average()?.let { String.format("%.1f", it) })
             BigStat(String.format("%,d", s.calories), "CALORIES", Color.White, avg?.map { it.calories }?.average()?.let { String.format("%,d", it.toInt()) })
@@ -182,6 +190,7 @@ fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDe
             KeyStat("MAX HR", "${s.maxHr}", "bpm", avg?.let { "${it.map { h -> h.maxHr }.average().toInt()}bpm" })
             KeyStat("DURATION", hms(s.durationS), "", avg?.let { hms(it.map { h -> h.durationS }.average().toLong()) })
         }
+        progress?.invoke()
         if (onDelete != null) Text("Delete activity", style = body(13.sp, HelioColors.RecRed), modifier = Modifier.clickable(onClick = onDelete).padding(vertical = 6.dp))
     }
 }

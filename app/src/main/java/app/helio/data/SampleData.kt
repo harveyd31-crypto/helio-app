@@ -45,7 +45,7 @@ object SampleData {
 
     private val names = listOf("Muay Thai", "Run", "Tennis", "Cross", "Run")
 
-    fun days(today: LocalDate = LocalDate.now(), count: Int = 35): List<DaySummary> =
+    fun days(today: LocalDate = LocalDate.now(), count: Int = 120): List<DaySummary> =
         (count - 1 downTo 0).map { back -> day(today.minusDays(back.toLong()), back) }
 
     /** An activity with a believable heart-rate trace: warm-up, work with rounds/rallies, cool-down. */
@@ -84,16 +84,17 @@ object SampleData {
             val target = when {
                 t < t0 + warm -> 105.0 + 25.0 * (t - t0) / warm
                 r >= 0 -> 168.0 + (s % 5) + r * 1.5 - (if (r >= count - 2) 4.0 else 0.0) + 4 * sin(k * 0.8)
-                t < rounds.last().second + 60_000 -> 128.0 + r.coerceAtLeast(0)
+                t < rounds.last().second + 60_000 -> 124.0 + (s - 3) * 0.12
                 else -> 100.0
             }
-            bpm += (target - bpm) * (if (target > bpm) 0.16 else 0.11)
+            bpm += (target - bpm) * (if (target > bpm) 0.16 else 0.13 - (s - 3) * 0.0004)
             hr += t to (bpm + ((k * 37 + s) % 7) - 3).toInt()
             t += 5000L; k++
         }
         val strain = Strain.fromHeartRate(hr, 56.0, 188.0)
         val st = java.time.Instant.ofEpochMilli(end).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
-        return Activity("Muay Thai", (strain * 10).toInt() / 10.0, start, st, t0, end, hr, rounds)
+        val kind = listOf("Pads", "Sparring", "Pads", "Both")[s % 4]
+        return Activity("Muay Thai", (strain * 10).toInt() / 10.0, start, st, t0, end, hr, rounds, kind)
     }
 
     private fun sampleExtras(date: LocalDate, recovery: Int, sleepPerf: Int, s: Int): StrapExtras {

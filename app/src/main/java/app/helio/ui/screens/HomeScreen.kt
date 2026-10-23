@@ -141,6 +141,11 @@ fun HomeScreen(
     if (testState.running && detail != Detail.Test) detail = Detail.Test
     if (activeWorkout != null && detail != Detail.Recording) detail = Detail.Recording
     var openWorkout by remember { mutableStateOf<app.helio.data.Workout?>(null) }
+    val kinds by app.helio.data.Workouts.tags.collectAsState()
+    val finished by app.helio.data.Workouts.finished.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(finished) {
+        finished?.let { openWorkout = it; detail = Detail.Workout; app.helio.data.Workouts.consumeFinished() }
+    }
     val allWorkouts = remember(days, workouts) {
         workouts + days.flatMap { d -> d.activities.filter { it.hr.size > 10 }.map { a -> a.toWorkout() } }
     }
@@ -167,7 +172,15 @@ fun HomeScreen(
             } ?: Text("Activity finished.", style = body(14.sp))
             Detail.Workout -> openWorkout?.let { w ->
                 val history = allWorkouts.filter { it.type == w.type && it.start < w.start && it.start > w.start - 30L * 86_400_000 }.map { statsOf(it) }
-                app.helio.ui.components.WorkoutDetail(w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null, hrMax = vo2.hrMax) { detail = null }
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val kind = app.helio.data.Workouts.kindOf(w, kinds)
+                app.helio.ui.components.WorkoutDetail(
+                    w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null, hrMax = vo2.hrMax,
+                    kind = kind, onKind = { app.helio.data.Workouts.setKind(ctx, w, it) },
+                    progress = if (w.type == app.helio.data.WorkoutType.MuayThai) ({
+                        app.helio.ui.components.MuayThaiProgressCard(allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax, kind)
+                    }) else null,
+                ) { detail = null }
             } ?: Text("No activity selected.", style = body(14.sp))
             Detail.Test -> app.helio.ui.components.TestScreen(
                 state = testState, link = live.status, hr = live.hr, last = tests.lastOrNull(), canSimulate = sample,
@@ -228,7 +241,12 @@ fun HomeScreen(
                                     onOpenWorkout = { openWorkout = it; detail = Detail.Workout }) { detail = it }
                                 1 -> app.helio.ui.components.SleepDetail(days, selected, null)
                                 2 -> RecoveryTab(day)
-                                3 -> StrainDetailTab(days, selected, goal, dayWorkouts, vo2.hrMax) { openWorkout = it; detail = Detail.Workout }
+                                3 -> {
+                                    StrainDetailTab(days, selected, goal, dayWorkouts, vo2.hrMax) { openWorkout = it; detail = Detail.Workout }
+                                    if (allWorkouts.any { it.type == app.helio.data.WorkoutType.MuayThai }) {
+                                        app.helio.ui.components.MuayThaiProgressCard(allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax)
+                                    }
+                                }
                             }
                         }
                     }
