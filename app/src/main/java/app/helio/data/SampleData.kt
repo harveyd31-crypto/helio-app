@@ -53,8 +53,8 @@ object SampleData {
         val zone = java.time.ZoneId.systemDefault()
         val t0 = date.atTime(start).atZone(zone).toInstant().toEpochMilli()
         val n = (minutes * 12).toInt()
+        if (name == "Muay Thai") return sampleMuayThai(t0, start, minutes, s)
         val (base, swing, period) = when (name) {
-            "Muay Thai" -> Triple(150.0, 16.0, 36.0)   // 3-min rounds, 1-min rest
             "Tennis" -> Triple(138.0, 12.0, 14.0)
             "Cross" -> Triple(152.0, 14.0, 20.0)
             else -> Triple(148.0, 4.0, 60.0)
@@ -67,6 +67,33 @@ object SampleData {
         }
         val strain = Strain.fromHeartRate(hr, 56.0, 188.0)
         return Activity(name, (strain * 10).toInt() / 10.0, start, start.plusMinutes(minutes), t0, t0 + n * 5000L, hr)
+    }
+
+    /** Warm-up, then 3:00 rounds with 1:00 rest (heart rate climbs each round, drops in the rest, fades a little late on), cool-down. */
+    private fun sampleMuayThai(t0: Long, start: LocalTime, minutes: Long, s: Int): Activity {
+        val warm = 8 * 60_000L
+        val count = ((minutes - 14) / 4).toInt().coerceIn(3, 8)
+        val rounds = (0 until count).map { r -> (t0 + warm + r * 240_000L) to (t0 + warm + r * 240_000L + 180_000L) }
+        val end = rounds.last().second + 6 * 60_000L
+        val hr = mutableListOf<Pair<Long, Int>>()
+        var bpm = 92.0
+        var t = t0
+        var k = 0
+        while (t <= end) {
+            val r = rounds.indexOfFirst { t >= it.first && t < it.second }
+            val target = when {
+                t < t0 + warm -> 105.0 + 25.0 * (t - t0) / warm
+                r >= 0 -> 168.0 + (s % 5) + r * 1.5 - (if (r >= count - 2) 4.0 else 0.0) + 4 * sin(k * 0.8)
+                t < rounds.last().second + 60_000 -> 128.0 + r.coerceAtLeast(0)
+                else -> 100.0
+            }
+            bpm += (target - bpm) * (if (target > bpm) 0.16 else 0.11)
+            hr += t to (bpm + ((k * 37 + s) % 7) - 3).toInt()
+            t += 5000L; k++
+        }
+        val strain = Strain.fromHeartRate(hr, 56.0, 188.0)
+        val st = java.time.Instant.ofEpochMilli(end).atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+        return Activity("Muay Thai", (strain * 10).toInt() / 10.0, start, st, t0, end, hr, rounds)
     }
 
     private fun sampleExtras(date: LocalDate, recovery: Int, sleepPerf: Int, s: Int): StrapExtras {

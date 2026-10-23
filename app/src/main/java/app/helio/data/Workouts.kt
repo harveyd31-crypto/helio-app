@@ -17,6 +17,8 @@ data class Workout(
     val type: WorkoutType,
     /** Heart rate every ~5 s: (epoch millis, bpm). */
     val hr: List<Pair<Long, Int>>,
+    /** Work rounds from the round timer: (start, end) epoch millis. */
+    val rounds: List<Pair<Long, Long>> = emptyList(),
 )
 
 data class WorkoutStats(
@@ -81,11 +83,12 @@ fun Activity.toWorkout(): Workout = Workout(
         else -> WorkoutType.Other
     },
     hr,
+    rounds,
 )
 
 /** Records the activity in progress and keeps finished ones on the phone. */
 object Workouts {
-    data class Active(val type: WorkoutType, val start: Long, val hr: List<Pair<Long, Int>>)
+    data class Active(val type: WorkoutType, val start: Long, val hr: List<Pair<Long, Int>>, val rounds: List<Pair<Long, Long>> = emptyList())
 
     private val _active = MutableStateFlow<Active?>(null)
     val active: StateFlow<Active?> = _active.asStateFlow()
@@ -106,11 +109,17 @@ object Workouts {
         _active.value = a.copy(hr = a.hr + (t to bpm))
     }
 
+    /** The round timer reports each finished work round here. */
+    fun addRound(start: Long, end: Long) {
+        val a = _active.value ?: return
+        _active.value = a.copy(rounds = a.rounds + (start to end))
+    }
+
     fun stop(ctx: Context): Workout? {
         val a = _active.value ?: return null
         _active.value = null
         if (a.hr.size < 12) return null
-        val w = Workout(a.start, System.currentTimeMillis(), a.type, a.hr)
+        val w = Workout(a.start, System.currentTimeMillis(), a.type, a.hr, a.rounds)
         save(ctx, _all.value + w)
         return w
     }
@@ -125,6 +134,7 @@ object Workouts {
             arr.put(JSONObject().apply {
                 put("s", w.start); put("e", w.end); put("t", w.type.name)
                 put("hr", JSONArray().apply { w.hr.forEach { (t, b) -> put(JSONArray().put(t).put(b)) } })
+                put("r", JSONArray().apply { w.rounds.forEach { (a, b) -> put(JSONArray().put(a).put(b)) } })
             })
         }
         ctx.getSharedPreferences("helio_workouts", Context.MODE_PRIVATE).edit().putString("all", arr.toString()).apply()
@@ -142,6 +152,7 @@ object Workouts {
                     o.getLong("s"), o.getLong("e"),
                     runCatching { WorkoutType.valueOf(o.getString("t")) }.getOrDefault(WorkoutType.Other),
                     (0 until hr.length()).map { k -> hr.getJSONArray(k).let { it.getLong(0) to it.getInt(1) } },
+                    o.optJSONArray("r")?.let { r -> (0 until r.length()).map { k -> r.getJSONArray(k).let { it.getLong(0) to it.getLong(1) } } } ?: emptyList(),
                 )
             }
         } catch (e: Exception) { emptyList() }

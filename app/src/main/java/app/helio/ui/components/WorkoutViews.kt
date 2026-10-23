@@ -105,7 +105,7 @@ fun ActivityPicker(link: LinkStatus, onPick: (WorkoutType) -> Unit, onClose: () 
 
 /** While recording: elapsed time, heart rate and zone, live strain and calories. */
 @Composable
-fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Double, rest: Double, profile: Profile, onEnd: () -> Unit, onDiscard: () -> Unit) {
+fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Double, rest: Double, profile: Profile, onEnd: () -> Unit, onDiscard: () -> Unit, onRounds: (() -> Unit)? = null) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
     val floors = WorkoutMath.floors(hrMax)
@@ -136,6 +136,13 @@ fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Do
             StatTile("${kcal.toInt()}", "Calories", Modifier.weight(1f))
             StatTile(active.hr.maxOfOrNull { it.second }?.toString() ?: "—", "Max HR", Modifier.weight(1f))
         }
+        if (onRounds != null) {
+            Box(
+                Modifier.fillMaxWidth().height(54.dp).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(27.dp)).clickable(onClick = onRounds),
+                contentAlignment = Alignment.Center,
+            ) { Text(if (active.rounds.isEmpty()) "ROUND TIMER" else "ROUND TIMER · ${active.rounds.size} DONE", style = cap(14.sp, Color.White)) }
+            Text("Tip: fold the phone half-open on a bench and the round timer opens by itself.", style = body(12.sp, HelioColors.TextMuted))
+        }
         Box(
             Modifier.fillMaxWidth().height(54.dp).background(HelioColors.RecRed, RoundedCornerShape(27.dp)).clickable(onClick = onEnd),
             contentAlignment = Alignment.Center,
@@ -146,7 +153,7 @@ fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Do
 
 /** Finished activity, in the style of the screenshots: strain, HR chart, zones with typical range, key stats vs 30 days. */
 @Composable
-fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDelete: (() -> Unit)?, onClose: () -> Unit) {
+fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDelete: (() -> Unit)?, hrMax: Double = 190.0, onClose: () -> Unit) {
     val avg = if (history.isEmpty()) null else history
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -163,6 +170,7 @@ fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDe
             BigStat(String.format("%,d", s.calories), "CALORIES", Color.White, avg?.map { it.calories }?.average()?.let { String.format("%,d", it.toInt()) })
         }
         HrChart(w)
+        app.helio.logic.RoundAnalysis.analyse(w, hrMax)?.let { RoundsCard(it, hrMax) }
         Zones(s, history)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
             Text("KEY STATISTICS", style = cap(13.sp, Color.White))
@@ -175,6 +183,57 @@ fun WorkoutDetail(w: Workout, s: WorkoutStats, history: List<WorkoutStats>, onDe
             KeyStat("DURATION", hms(s.durationS), "", avg?.let { hms(it.map { h -> h.durationS }.average().toLong()) })
         }
         if (onDelete != null) Text("Delete activity", style = body(13.sp, HelioColors.RecRed), modifier = Modifier.clickable(onClick = onDelete).padding(vertical = 6.dp))
+    }
+}
+
+/** Round by round: intensity, time in the red, recovery in the rest, and whether you held it to the end. */
+@Composable
+private fun RoundsCard(r: app.helio.logic.RoundAnalysis.Result, hrMax: Double) {
+    Column(Modifier.fillMaxWidth().card().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("ROUNDS", style = cap(13.sp, Color.White), modifier = Modifier.weight(1f))
+            Text("${r.rounds.size} rounds · best R${r.bestRound}", style = cap(11.sp))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            r.fadePct?.let { f ->
+                val held = f >= -3
+                Column(Modifier.weight(1f).background(Color(0xFF2A2F35), RoundedCornerShape(14.dp)).padding(12.dp)) {
+                    Text(if (held) "HELD" else "FADED", style = num(20.sp, FontWeight.Bold, if (held) HelioColors.RecGreen else HelioColors.RecYellow))
+                    Text("Last round ${if (f >= 0) "+" else ""}$f% vs best", style = body(12.sp, HelioColors.TextMuted))
+                }
+            }
+            r.avgDrop?.let { d ->
+                Column(Modifier.weight(1f).background(Color(0xFF2A2F35), RoundedCornerShape(14.dp)).padding(12.dp)) {
+                    Text("−$d bpm", style = num(20.sp, FontWeight.Bold, if (d >= 30) HelioColors.RecGreen else if (d >= 20) Color.White else HelioColors.RecYellow))
+                    Text("Avg recovery, first 60 s of rest", style = body(12.sp, HelioColors.TextMuted))
+                }
+            }
+            val red = r.rounds.sumOf { it.redS }
+            Column(Modifier.weight(1f).background(Color(0xFF2A2F35), RoundedCornerShape(14.dp)).padding(12.dp)) {
+                Text(String.format("%d:%02d", red / 60, red % 60), style = num(20.sp, FontWeight.Bold, zoneColors[5]))
+                Text("In the red (90 %+)", style = body(12.sp, HelioColors.TextMuted))
+            }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            listOf("", "AVG", "PEAK", "RED", "REST ↓").forEachIndexed { i, h -> Text(h, style = cap(10.sp), modifier = Modifier.weight(if (i == 0) 1.6f else 1f)) }
+        }
+        r.rounds.forEach { rd ->
+            val z = WorkoutMath.floors(hrMax).count { rd.avgHr >= it }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1.6f), verticalAlignment = Alignment.CenterVertically) {
+                    Text("R${rd.index}", style = num(14.sp, FontWeight.Bold), modifier = Modifier.width(30.dp))
+                    val f = ((rd.avgHr / hrMax - 0.5) / 0.5).toFloat().coerceIn(0.05f, 1f)
+                    Box(Modifier.weight(1f).padding(end = 10.dp).height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0x14FFFFFF))) {
+                        Box(Modifier.fillMaxWidth(f).height(8.dp).background(zoneColors[z]))
+                    }
+                }
+                Text("${rd.avgHr}", style = num(14.sp), modifier = Modifier.weight(1f))
+                Text("${rd.peakHr}", style = num(14.sp, color = HelioColors.TextSoft), modifier = Modifier.weight(1f))
+                Text(String.format("%d:%02d", rd.redS / 60, rd.redS % 60), style = num(14.sp, color = HelioColors.TextSoft), modifier = Modifier.weight(1f))
+                Text(rd.drop60?.let { "−$it" } ?: "—", style = num(14.sp, color = HelioColors.TextSoft), modifier = Modifier.weight(1f))
+            }
+        }
+        Text("Rest ↓ is how far your heart rate falls in the first minute of rest. It drops less as you tire, and more as your conditioning improves.", style = body(12.sp, HelioColors.TextMuted))
     }
 }
 
@@ -204,6 +263,9 @@ private fun HrChart(w: Workout) {
         listOf(75, 100, 125, 150, 175).forEach { g ->
             drawLine(HelioColors.Divider, Offset(left, y(g.toDouble())), Offset(size.width, y(g.toDouble())), 1f)
             drawText(tm, "$g", Offset(0f, y(g.toDouble()) - 7.dp.toPx()), cap(10.sp))
+        }
+        w.rounds.forEach { (a, b) ->
+            drawRect(Color(0x1FE8384F), Offset(x(a), top), Size(x(b) - x(a), bottom - top))
         }
         val line = Path(); val area = Path()
         w.hr.forEachIndexed { i, (t, b) ->

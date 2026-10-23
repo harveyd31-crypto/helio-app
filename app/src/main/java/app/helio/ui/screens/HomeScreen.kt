@@ -121,6 +121,7 @@ fun HomeScreen(
     onDiscardWorkout: () -> Unit,
     onDeleteWorkout: (app.helio.data.Workout) -> Unit,
     onOpenLive: () -> Unit,
+    onOpenRounds: () -> Unit = {},
     liveContent: @Composable () -> Unit,
 ) {
     val expanded = fold == FoldMode.Open
@@ -161,11 +162,12 @@ fun HomeScreen(
                     a, live.hr, live.status, vo2.hrMax, rest, profile,
                     onEnd = { val w = onEndWorkout(); openWorkout = w; detail = if (w != null) Detail.Workout else null },
                     onDiscard = { onDiscardWorkout(); detail = null },
+                    onRounds = onOpenRounds,
                 )
             } ?: Text("Activity finished.", style = body(14.sp))
             Detail.Workout -> openWorkout?.let { w ->
                 val history = allWorkouts.filter { it.type == w.type && it.start < w.start && it.start > w.start - 30L * 86_400_000 }.map { statsOf(it) }
-                app.helio.ui.components.WorkoutDetail(w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null) { detail = null }
+                app.helio.ui.components.WorkoutDetail(w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null, hrMax = vo2.hrMax) { detail = null }
             } ?: Text("No activity selected.", style = body(14.sp))
             Detail.Test -> app.helio.ui.components.TestScreen(
                 state = testState, link = live.status, hr = live.hr, last = tests.lastOrNull(), canSimulate = sample,

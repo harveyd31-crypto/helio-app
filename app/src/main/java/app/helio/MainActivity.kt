@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
         Repository.loadProfile(this)
         Repository.loadTests(this)
         app.helio.data.Workouts.load(this)
+        app.helio.data.RoundTimer.load(this)
         lifecycleScope.launch { Repository.refresh(this@MainActivity) }
         if ((LiveHeartRateService.rememberedDevice(this) != null || app.helio.strap.StrapManager.pairing(this) != null) && LiveHeartRateService.hasPermissions(this)) {
             LiveHeartRateService.start(this)
@@ -91,6 +92,8 @@ class MainActivity : ComponentActivity() {
         var selected by remember { mutableIntStateOf(-1) }
         if (selected !in days.indices) selected = days.lastIndex
         var forceLive by remember { mutableStateOf(false) }
+        var forceRounds by remember { mutableStateOf(false) }
+        if (activeWorkout == null) forceRounds = false
 
         val width = LocalConfiguration.current.screenWidthDp
         val fold = when {
@@ -160,13 +163,33 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        val showLive = fold == FoldMode.Tabletop || forceLive
+        fun endWorkout(): app.helio.data.Workout? {
+            app.helio.data.RoundTimer.closeOpenRound()
+            val w = app.helio.data.Workouts.stop(this@MainActivity)
+            app.helio.data.RoundTimer.reset()
+            return w
+        }
+        // Half-folded during an activity → round timer; half-folded otherwise → live stress
+        val mode = when {
+            activeWorkout != null && (fold == FoldMode.Tabletop || forceRounds) -> 2
+            fold == FoldMode.Tabletop || forceLive -> 1
+            else -> 0
+        }
         AnimatedContent(
-            targetState = showLive,
+            targetState = mode,
             transitionSpec = { (fadeIn(tween(350)) + scaleIn(tween(350), initialScale = 0.97f)) togetherWith fadeOut(tween(200)) },
             label = "mode",
-        ) { liveMode ->
-            if (liveMode) liveContent()
+        ) { m ->
+            if (m == 2) activeWorkout?.let { a ->
+                app.helio.ui.screens.RoundsScreen(
+                    live = live, active = a,
+                    hrMax = app.helio.logic.Vo2Max.hrMax(profile, days, java.time.LocalDate.now()).first,
+                    topHeight = if (fold == FoldMode.Tabletop) hingeTopPx.value?.let { with(density) { it.toDp() } } else null,
+                    onClose = { forceRounds = false },
+                    onEnd = { endWorkout(); forceRounds = false },
+                )
+            }
+            else if (m == 1) liveContent()
             else HomeScreen(
                 days = days,
                 selected = selected,
@@ -186,8 +209,8 @@ class MainActivity : ComponentActivity() {
                     if (live.status != app.helio.data.LinkStatus.Live) connect()
                     app.helio.data.Workouts.start(t)
                 },
-                onEndWorkout = { app.helio.data.Workouts.stop(this@MainActivity) },
-                onDiscardWorkout = { app.helio.data.Workouts.discard() },
+                onEndWorkout = { endWorkout() },
+                onDiscardWorkout = { app.helio.data.RoundTimer.reset(); app.helio.data.Workouts.discard() },
                 onDeleteWorkout = { app.helio.data.Workouts.delete(this@MainActivity, it) },
                 onSimulateTest = {
                     val today = java.time.LocalDate.now()
@@ -195,6 +218,7 @@ class MainActivity : ComponentActivity() {
                     Repository.addTest(this@MainActivity, app.helio.logic.RunTest.simulate(hrMax, today.toEpochDay()))
                 },
                 onOpenLive = { forceLive = true },
+                onOpenRounds = { forceRounds = true },
                 liveContent = liveContent,
             )
         }

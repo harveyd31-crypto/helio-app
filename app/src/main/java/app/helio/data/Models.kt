@@ -18,6 +18,8 @@ data class Activity(
     val endMs: Long = 0,
     /** Heart rate during the activity, about every 5 s: (epoch millis, bpm). */
     val hr: List<Pair<Long, Int>> = emptyList(),
+    /** Work rounds (start, end epoch millis) when the round timer was used. */
+    val rounds: List<Pair<Long, Long>> = emptyList(),
 )
 
 enum class Stage { Awake, Rem, Light, Deep }
