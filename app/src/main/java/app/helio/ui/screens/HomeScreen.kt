@@ -134,6 +134,18 @@ fun HomeScreen(
         val male = profile.male ?: if (sample) true else null
         if (age != null && male != null) BodyAge.compute(days, day.date, age, male, vo2.value) else null
     }
+    val habitsAge = remember(days, selected, profile, vo2.value, workouts) {
+        val upTo = days.subList(0, selected + 1)
+        val since = day.date.minusDays(28)
+        val strength = upTo.filter { it.date > since }.flatMap { it.activities }
+            .filter { it.name.contains("cross", true) || it.name.contains("strength", true) }.sumOf { (it.endMs - it.startMs) / 60_000.0 } +
+            workouts.filter { it.type == app.helio.data.WorkoutType.CrossFit && java.time.Instant.ofEpochMilli(it.start).atZone(java.time.ZoneId.systemDefault()).toLocalDate() > since }
+                .sumOf { (it.end - it.start) / 60_000.0 }
+        app.helio.logic.Insights.habitsAge(
+            upTo.takeLast(180), profile.age ?: if (sample) 40 else null, profile.male ?: if (sample) true else null,
+            strength / 4.0, vo2.value,
+        )
+    }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var detail by remember { mutableStateOf<Detail?>(null) }
     val tabs = if (expanded) listOf("Overview", "Sleep", "Recovery", "Strain", "Live") else listOf("Overview", "Sleep", "Recovery", "Strain")
@@ -159,7 +171,7 @@ fun HomeScreen(
     val detailContent: @Composable (Detail) -> Unit = { d ->
         when (d) {
             Detail.Vo2 -> Vo2Detail(vo2, profileMissing = !profile.complete, onOpenTest = { detail = Detail.Test }) { detail = null }
-            Detail.Age -> AgeDetail(bodyAge, sample = sample && !profile.complete) { detail = null }
+            Detail.Age -> AgeDetail(bodyAge, sample = sample && !profile.complete, habits = habitsAge) { detail = null }
             Detail.Sleep -> app.helio.ui.components.SleepDetail(days, selected) { detail = null }
             Detail.Picker -> app.helio.ui.components.ActivityPicker(live.status, onPick = { onStartWorkout(it); detail = Detail.Recording }) { detail = null }
             Detail.Recording -> activeWorkout?.let { a ->
@@ -230,6 +242,12 @@ fun HomeScreen(
                 if (t == 4) liveContent() else Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(leftWidth).fillMaxHeight().then(swipe)) {
                         val scroll = rememberScrollState()
+                        when (t) {
+                            0, 2 -> app.helio.ui.components.WeekStrip(days, selected, onSelect, { it.recovery?.let { r -> r / 100f } }, { HelioColors.recovery(it.recovery) })
+                            1 -> app.helio.ui.components.WeekStrip(days, selected, onSelect,
+                                { d -> (d.extras?.deviceSleepScore ?: d.sleepPerformance)?.let { it / 100f } }, { app.helio.ui.components.SleepPurple })
+                            3 -> app.helio.ui.components.WeekStrip(days, selected, onSelect, { d -> d.strain?.let { (it / 21).toFloat() } }, { HelioColors.Strain })
+                        }
                         if (t == 0) {
                             val range = with(LocalDensity.current) { 150.dp.toPx() }
                             val collapse = (scroll.value / range).coerceIn(0f, 1f)
@@ -237,10 +255,21 @@ fun HomeScreen(
                         }
                         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 6.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             when (t) {
-                                0 -> OverviewList(day, goal, expanded, live, vo2, bodyAge, onOpenLive, dayWorkouts,
-                                    onOpenWorkout = { openWorkout = it; detail = Detail.Workout }) { detail = it }
-                                1 -> app.helio.ui.components.SleepDetail(days, selected, null)
-                                2 -> RecoveryTab(day)
+                                0 -> {
+                                    app.helio.ui.components.DaySummaryCard(days, selected) { tab = 2 }
+                                    app.helio.ui.components.LastNightTiles(days, selected)
+                                    OverviewList(day, goal, expanded, live, vo2, bodyAge, onOpenLive, dayWorkouts,
+                                        onOpenWorkout = { openWorkout = it; detail = Detail.Workout }) { detail = it }
+                                }
+                                1 -> {
+                                    app.helio.ui.components.SleepOverview(day)
+                                    app.helio.ui.components.SleepDetail(days, selected, null)
+                                }
+                                2 -> {
+                                    RecoveryTab(day)
+                                    app.helio.ui.components.RecoveryInsight(days, selected)
+                                    app.helio.ui.components.LastNightTiles(days, selected)
+                                }
                                 3 -> {
                                     StrainDetailTab(days, selected, goal, dayWorkouts, vo2.hrMax) { openWorkout = it; detail = Detail.Workout }
                                     listOf(app.helio.data.WorkoutType.MuayThai, app.helio.data.WorkoutType.Tennis).forEach { sport ->

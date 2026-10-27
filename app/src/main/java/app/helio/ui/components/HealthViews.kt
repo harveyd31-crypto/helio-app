@@ -258,9 +258,11 @@ fun ageDeltaText(d: Double, short: Boolean = false): String {
 }
 
 @Composable
-fun AgeDetail(r: BodyAge.Result?, sample: Boolean, onClose: () -> Unit) {
+fun AgeDetail(r: BodyAge.Result?, sample: Boolean, habits: app.helio.logic.Insights.HabitsAge? = null, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         DetailHeader("ESTIMATED AGE", onClose)
+        habits?.let { HabitsAgeCard(it) }
+        if (habits != null) Text("BODY AGE FROM 9 MARKERS", style = cap(12.sp, Color.White), modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
         Box(contentAlignment = Alignment.Center) {
             AgeBlob(Modifier.size(250.dp), particles = 150, animate = true)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {

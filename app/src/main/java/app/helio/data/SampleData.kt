@@ -172,6 +172,7 @@ object SampleData {
             strapStress = (32 + 18 * sin(s * 1.7)).toInt(),
             illness = if (s % 17 == 0) "Breathing rate and skin temperature were both above your usual last night. Worth an easier day." else null,
             cardioLoad = 140.0 + 40 * sin(s * 0.9), typicalLoad = 150.0,
+            skinTempNight = 33.9 + ((s % 7) - 3) / 10.0,
         )
     }
 

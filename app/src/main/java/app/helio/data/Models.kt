@@ -126,6 +126,8 @@ data class StrapExtras(
     val illnessSevere: Boolean = false,
     val cardioLoad: Double? = null,
     val typicalLoad: Double? = null,
+    /** The night's mean skin temperature, °C (main sleep). */
+    val skinTempNight: Double? = null,
 )
 
 /** A steady run: enough to place one point on your heart-rate-vs-speed line. */

@@ -146,6 +146,7 @@ private fun Science.strainCard(day: LocalDate): Card<Strain> {
     val hist = history(day, "cardio_load", BASELINE_DAYS)
     return Card.Shown(Strain(
         strainFromLoad(row.value, p95?.takeIf { it != 0.0 }), 21.0, round(row.value, 1),
+        row.flags.num("workout_load"), row.flags.num("everyday_load"),
         if (hist.size >= BASELINE_MIN_POINTS) round(Robust.median(hist), 1) else null, row.flags,
         (row.flags["zone_min"] as? JsonArray)?.map { it.jsonPrimitive.intOrNull ?: 0 },
         row.flags.int("hrmax"), row.flags.int("rhr"),
@@ -157,7 +158,7 @@ private fun Science.lastDay(day: LocalDate, metric: String): LocalDate? = store.
 private fun Science.sleepCard(day: LocalDate): SleepCard {
     val (start, end) = dayBounds(day)
     val nights = data.sleepSessions(start, end).filter { it.end >= start && it.end < end }.map { s ->
-        Night(s.start, s.end, s.kind, s.remMin, s.lightMin, s.deepMin, s.wakeMin, s.stages, s.score?.takeIf { it != 0 })
+        Night(s.start, s.end, s.kind, s.remMin, s.lightMin, s.deepMin, s.wakeMin, s.stages, s.score?.takeIf { it != 0 }, s.estimatedMin)
     }
     val score = store.get(day, "sleep_health_score_4dim")
     val debt = store.get(day, "sleep_debt_min")
@@ -234,10 +235,13 @@ private fun Science.vo2maxCard(day: LocalDate): Card<DailyNumber> {
 
 private fun fixed(x: Double, digits: Int): String = BigDecimal(x).setScale(digits, RoundingMode.HALF_EVEN).toPlainString()
 
+/** "+0.3" or "−0.2": a limb's change keeps its own sign (a limb under its baseline used to print "+-0.2"). */
+private fun signedFixed(x: Double, digits: Int): String = fixed(x, digits).let { if (it.startsWith("-")) "−" + it.drop(1) else "+$it" }
+
 internal fun illnessFraming(rrDelta: Double?, tempDelta: Double?, sustained: Boolean): String {
     val parts = listOfNotNull(
-        rrDelta?.let { "breathing rate +${fixed(it, 1)} bpm vs your 14-day baseline" },
-        tempDelta?.let { "skin temperature +${fixed(it, 2)}°C" },
+        rrDelta?.let { "breathing rate ${signedFixed(it, 1)} bpm vs your 14-day baseline" },
+        tempDelta?.let { "skin temperature ${signedFixed(it, 2)}°C" },
     )
     val joined = parts.joinToString("; ")
     val suffix = if (sustained) " — sustained across two nights, the Smarr 2020 / Quer 2021 pattern" else ""
@@ -261,7 +265,7 @@ public fun Science.daySummary(day: LocalDate, now: Instant): DaySummary {
     return DaySummary(
         day, zones.zoneOf(day), start, end, until,
         recoveryCard(day),
-        chargeCard(day, now),
+        energyCard(day, now),
         strainCard(day),
         sleepCard(day),
         Activity(

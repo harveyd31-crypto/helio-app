@@ -18,6 +18,7 @@ import strap.science.WeightEntry
 import strap.science.Zones
 import strap.science.daySeries
 import strap.science.daySummary
+import strap.science.illnessCheck
 import strap.science.rawFrom
 import strap.science.rederive
 import strap.science.shown
@@ -29,7 +30,7 @@ import kotlin.math.roundToInt
 
 /**
  * Turns what the strap delivered (stored by [LocalStore]) into Helio's days, using Ridge's
- * science for recovery, strain, sleep, charge and the rest. Helio's own extras (weekly goal,
+ * science for recovery, strain, sleep and the rest. Helio's own extras (weekly goal,
  * VO2 max blend, estimated age, live stress) keep running on top of these days.
  */
 object StrapScience {
@@ -38,7 +39,7 @@ object StrapScience {
 
     fun hasData(ctx: Context): Boolean = StrapManager.pairing(ctx) != null && !StrapManager.store(ctx).isEmpty()
 
-    fun days(ctx: Context, profile: Profile, count: Int = 35): List<DaySummary> {
+    fun days(ctx: Context, profile: Profile, count: Int = 60): List<DaySummary> {
         val store = StrapManager.store(ctx)
         val zone = ZoneId.systemDefault()
         val zones = Zones(zone.id)
@@ -54,7 +55,6 @@ object StrapScience {
         val science = Science(data, store.derived)
         science.rederive(since = first)
         val now = Instant.now()
-        val nightTemps = nightTemperatures(science)
 
         return (0 until count).map { k ->
             val day = first.plusDays(k.toLong())
@@ -112,7 +112,7 @@ object StrapScience {
                 )
             }
 
-            val charge = sum.charge.shown
+            val check = runCatching { science.illnessCheck(day) }.getOrNull()
             val act = sum.activity
             DaySummary(
                 date = day,
@@ -124,7 +124,7 @@ object StrapScience {
                 sleepPerformance = sleep?.let { (it.minutesAsleep / need * 100).roundToInt().coerceIn(0, 100) },
                 sleep = sleep,
                 respRate = store.derived.get(day, "respiratory_rate_sleep")?.value,
-                skinTempDelta = nightTemps[day],
+                skinTempDelta = check?.let { c -> c.tempNight?.let { n -> c.tempUsual?.let { u -> n - u } } },
                 stressNow = stress.lastOrNull()?.v,
                 stressUpdated = series.series["stress"].orEmpty().lastOrNull()?.at?.atZone(zone)?.toLocalTime(),
                 stressSeries = stress,
@@ -139,9 +139,7 @@ object StrapScience {
                 strengthMin = 0,
                 maxHr = sum.heart.today.shown?.max?.roundToInt(),
                 extras = StrapExtras(
-                    charge = charge?.value, chargeAtWake = charge?.atWake, chargeHigh = charge?.high, chargeLow = charge?.low,
-                    chargeRecharged = charge?.recharged, chargeActivity = charge?.activity, chargeStress = charge?.stress, chargeLiving = charge?.living,
-                    chargeCurve = charge?.curve.orEmpty().map { it.at.toEpochMilli() to it.value },
+                    skinTempNight = check?.tempNight,
                     recoveryParts = sum.recovery.shown?.factors.orEmpty().map { RecoveryPart(it.key, it.sub, it.weight, it.value, it.baseline) },
                     recoveryWithheld = (sum.recovery as? Card.Withheld)?.message,
                     sleepNeedMin = sum.sleep.needMin?.roundToInt(),
@@ -166,19 +164,6 @@ object StrapScience {
                 ),
             )
         }
-    }
-
-    /** Skin temperature during each main night vs the median of the 14 nights before (°C). */
-    private fun nightTemperatures(science: Science): Map<LocalDate, Double> {
-        val zone = ZoneId.systemDefault()
-        val means = science.data.mainSessions().mapNotNull { n ->
-            val xs = science.data.samples("skin_temp_c", n.start, n.end).map { it.value }.filter { it > 25.0 }
-            if (xs.size < 30) null else n.end.atZone(zone).toLocalDate() to xs.average()
-        }.toMap().toSortedMap()
-        return means.mapValues { (d, v) ->
-            val prior = means.filterKeys { it < d && it >= d.minusDays(14) }.values.sorted()
-            if (prior.size < 5) Double.NaN else v - prior[prior.size / 2]
-        }.filterValues { !it.isNaN() }
     }
 
     /** Best-guess Zepp sport codes (unverified on the Helio); anything else shows as a plain workout. */
