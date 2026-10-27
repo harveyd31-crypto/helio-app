@@ -46,6 +46,15 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all {
+                it.systemProperty("roborazzi.test.record", "true")
+                it.maxHeapSize = "2g"
+            }
+        }
+    }
 }
 
 dependencies {
@@ -82,4 +91,13 @@ dependencies {
 
     // Live background blur for the glass Start Activity button
     implementation("dev.chrisbanes.haze:haze:1.2.2")
+
+    // Screenshots of the real screens on the build machine (renders)
+    testImplementation(composeBom)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.39.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.39.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

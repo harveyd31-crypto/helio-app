@@ -1,0 +1,49 @@
+name: Renders
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  renders:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK (preinstalled on the runner)
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Render the screens
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:testDebugUnitTest --tests app.helio.RenderTest --continue 2>&1 | tee render.log
+
+      - name: Publish renders (and any errors) to the renders branch
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out
+          cp app/build/renders/*.png out/ 2>/dev/null || true
+          { grep -E "^e: |error:|FAILED|What went wrong|Exception" -A6 render.log | head -150; tail -40 render.log; } > out/log.txt || true
+          for f in app/build/test-results/testDebugUnitTest/*.xml; do [ -f "$f" ] && grep -A12 "<failure" "$f" | head -40 >> out/log.txt; done
+          cd out
+          git init -q -b renders
+          git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
+          git add -A && git commit -qm "Renders for ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" renders
