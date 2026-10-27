@@ -78,11 +78,11 @@ class RenderTest {
     }
 
     @Config(qualifiers = "w400dp-h2300dp-xhdpi") @Test fun cover1_overview() = shot("cover1_overview") { Home(FoldMode.Cover) }
-    @Config(qualifiers = "w400dp-h2300dp-xhdpi") @Test fun cover2_sleep() = shot("cover2_sleep", "Sleep") { Home(FoldMode.Cover) }
-    @Config(qualifiers = "w400dp-h2000dp-xhdpi") @Test fun cover3_recovery() = shot("cover3_recovery", "Recovery") { Home(FoldMode.Cover) }
-    @Config(qualifiers = "w400dp-h2300dp-xhdpi") @Test fun cover4_strain() = shot("cover4_strain", "Strain") { Home(FoldMode.Cover) }
+    @Config(qualifiers = "w400dp-h2300dp-xhdpi") @Test fun cover2_sleep() = shot("cover2_sleep", "SLEEP") { Home(FoldMode.Cover) }
+    @Config(qualifiers = "w400dp-h2000dp-xhdpi") @Test fun cover3_recovery() = shot("cover3_recovery", "RECOVERY") { Home(FoldMode.Cover) }
+    @Config(qualifiers = "w400dp-h2300dp-xhdpi") @Test fun cover4_strain() = shot("cover4_strain", "STRAIN") { Home(FoldMode.Cover) }
     @Config(qualifiers = "w880dp-h1700dp-xhdpi") @Test fun open1_overview() = shot("open1_overview") { Home(FoldMode.Open) }
-    @Config(qualifiers = "w880dp-h1700dp-xhdpi") @Test fun open2_sleep() = shot("open2_sleep", "Sleep") { Home(FoldMode.Open) }
+    @Config(qualifiers = "w880dp-h1700dp-xhdpi") @Test fun open2_sleep() = shot("open2_sleep", "SLEEP") { Home(FoldMode.Open) }
 
     private fun detail(name: String, content: @Composable () -> Unit) = shot(name) {
         Box(Modifier.fillMaxSize().background(HelioColors.background)) {
