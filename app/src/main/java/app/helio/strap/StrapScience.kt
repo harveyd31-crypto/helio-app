@@ -37,11 +37,13 @@ object StrapScience {
     private val CHART_START: LocalTime = LocalTime.of(4, 30)
     private val CHART_END: LocalTime = LocalTime.of(23, 0)
 
-    fun hasData(ctx: Context): Boolean = StrapManager.pairing(ctx) != null && !StrapManager.store(ctx).isEmpty()
+    fun hasData(ctx: Context): Boolean = !StrapManager.store(ctx).isEmpty()
 
-    fun days(ctx: Context, profile: Profile, count: Int = 60): List<DaySummary> {
+    fun days(ctx: Context, profile: Profile, count0: Int? = null): List<DaySummary> {
         val store = StrapManager.store(ctx)
         val zone = ZoneId.systemDefault()
+        // Up to six months (an imported Zepp history reaches back that far), at least five weeks.
+        val count = count0 ?: (store.firstData()?.let { java.time.temporal.ChronoUnit.DAYS.between(it.atZone(zone).toLocalDate(), LocalDate.now(zone)).toInt() + 1 } ?: 35).coerceIn(35, 180)
         val zones = Zones(zone.id)
         val today = LocalDate.now(zone)
         val first = today.minusDays((count - 1).toLong())

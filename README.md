@@ -23,6 +23,11 @@ Setup, once:
    talks to one app at a time.
 4. In Helio: Profile → Helio Strap · direct → MAC and key → Save. The link starts and the first sync pulls ~30 days.
 
+### Older history from Zepp
+The strap holds about 30 days. To bring in earlier months from the Zepp cloud (heart rate,
+steps, stress, sleep), run `tools/zepp-history` on a computer and import the file in
+Profile → Import Zepp history file. See tools/zepp-history/README.md.
+
 ## Data — fallbacks
 - **Live:** the Helio's standard Bluetooth heart-rate broadcast (0x180D / 0x2A37), kept open by a foreground service.
   Live stress = heart rate vs your resting baseline, every 5 s (the Helio does not broadcast beat-to-beat intervals).

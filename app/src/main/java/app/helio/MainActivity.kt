@@ -126,6 +126,20 @@ class MainActivity : ComponentActivity() {
             } else btLauncher.launch(perms.toTypedArray())
         }
         var editProfile by remember { mutableStateOf(false) }
+        var importStatus by remember { mutableStateOf<String?>(null) }
+        val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) scope.launch {
+                importStatus = "Reading the file…"
+                importStatus = try {
+                    val r = app.helio.strap.ZeppImport.run(this@MainActivity, uri) { p -> importStatus = p }
+                    importStatus = "Working out every day again…"
+                    Repository.refresh(this@MainActivity)
+                    "Imported ${r.first ?: "?"} to ${r.last ?: "?"}: ${String.format("%,d", r.samples)} readings, ${r.nights} nights, ${r.days} day totals. Days the strap already had were kept."
+                } catch (e: Exception) {
+                    "Import failed: ${e.message ?: e.javaClass.simpleName}"
+                }
+            }
+        }
         if (editProfile) {
             val (mac0, key0) = app.helio.strap.StrapManager.pairingText(this@MainActivity)
             ProfileDialog(profile, mac0, key0, onSave = { p, mac, key ->
@@ -140,7 +154,7 @@ class MainActivity : ComponentActivity() {
                     scope.launch { Repository.refresh(this@MainActivity) }
                 }
                 err
-            }, onDismiss = { editProfile = false })
+            }, onDismiss = { editProfile = false }, importStatus = importStatus, onImport = { importLauncher.launch(arrayOf("*/*")) })
         }
 
         val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->

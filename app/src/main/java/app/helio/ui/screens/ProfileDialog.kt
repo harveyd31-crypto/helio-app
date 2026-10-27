@@ -25,7 +25,7 @@ import app.helio.ui.theme.HelioColors
 
 /** Birth year and sex drive max heart rate, VO2 max bands and estimated age. */
 @Composable
-fun ProfileDialog(profile: Profile, strapMac: String, strapKey: String, onSave: (Profile, String, String) -> String?, onDismiss: () -> Unit) {
+fun ProfileDialog(profile: Profile, strapMac: String, strapKey: String, onSave: (Profile, String, String) -> String?, onDismiss: () -> Unit, importStatus: String? = null, onImport: () -> Unit = {}) {
     var year by remember { mutableStateOf(profile.birthYear?.toString() ?: "") }
     var male by remember { mutableStateOf(profile.male) }
     var height by remember { mutableStateOf(profile.heightCm?.toString() ?: "") }
@@ -54,6 +54,11 @@ fun ProfileDialog(profile: Profile, strapMac: String, strapKey: String, onSave: 
                 OutlinedTextField(mac, { mac = it.take(17) }, label = { Text("Strap MAC (C4:A1:…)") }, singleLine = true)
                 OutlinedTextField(key, { key = it.take(40) }, label = { Text("Auth key (32 hex)") }, singleLine = true)
                 error?.let { Text(it, style = app.helio.ui.theme.body(12.sp, HelioColors.RecRed)) }
+                Text("ZEPP HISTORY", style = app.helio.ui.theme.cap(11.sp, HelioColors.Strain))
+                Text("Bring in your older months from the Zepp cloud (heart rate, steps, stress, sleep). Make the file on your Mac with tools/zepp-history, then pick it here. It only fills gaps.",
+                    style = app.helio.ui.theme.body(12.sp, HelioColors.TextMuted))
+                androidx.compose.material3.OutlinedButton(onClick = onImport) { Text("Import Zepp history file") }
+                importStatus?.let { Text(it, style = app.helio.ui.theme.body(12.sp, HelioColors.TextSoft)) }
             }
         },
         confirmButton = {
