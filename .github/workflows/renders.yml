@@ -41,7 +41,7 @@ jobs:
           mkdir -p out
           cp app/build/renders/*.png out/ 2>/dev/null || true
           { grep -E "^e: |error:|FAILED|What went wrong|Exception" -A6 render.log | head -150; tail -40 render.log; } > out/log.txt || true
-          for f in app/build/test-results/testDebugUnitTest/*.xml; do [ -f "$f" ] && grep -A12 "<failure" "$f" | head -40 >> out/log.txt; done
+          for f in app/build/test-results/testDebugUnitTest/*.xml; do grep -A12 "<failure" "$f" 2>/dev/null | head -40 >> out/log.txt || true; done
           cd out
           git init -q -b renders
           git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
