@@ -45,8 +45,8 @@ object WidgetRender {
     private fun white(a: Float) = Color.argb((a * 255).toInt(), 255, 255, 255)
 
     // Base layouts (dp): content is drawn at this size, then scaled to the widget.
-    private const val MIN_W = 200f; private const val MIN_H = 116f
-    private const val DET_W = 330f; private const val DET_H = 262f
+    private const val MIN_W = 200f; private const val MIN_H = 128f
+    private const val DET_W = 330f; private const val DET_H = 268f
     private const val STRIP_W = 340f; private const val STRIP_H = 46f
 
     /** The widget: transparent, minimal when narrow, detailed when wide. */
@@ -177,78 +177,67 @@ object WidgetRender {
             return cx
         }
 
-        /** Cover screen: week, strain, recovery and sleep. Nothing else. */
+        /** Cover screen: training week, strain, recovery and sleep. Nothing else. */
         fun minimal(c: Canvas, s: WidgetStore.Snapshot, w: Float, gap: Float = 0f) {
-            var y = 18f + gap / 2
-            cap(c, "Training", 0f, y)
-            val f = s.week?.let { it.cumulative / it.goal } ?: 0.0
-            text(c, s.week?.let { String.format("%.1f", it.cumulative) } ?: "—", w, y + 2f, 21f, weekColor(f), tight, right = true)
-            y += 7f
-            weekBar(c, s, 0f, y, w, 11f)
-            y += 11f + 25f + gap
-            cap(c, "Strain", 0f, y)
-            text(c, s.strain?.let { String.format("%.1f", it) } ?: "—", w, y + 2f, 21f, Color.WHITE, tight, right = true)
-            y += 7f
-            strainBar(c, s, 0f, y, w, 11f)
-            y += 11f + 22f + gap
-            recSleep(c, s, 0f, y, 15f, 9f)
-        }
-
-        private fun head(c: Canvas, label: String, info: String, value: String, valueColor: Int, y: Float, w: Float) {
-            cap(c, label, 0f, y, 10f)
-            val vw = text(c, value, w, y + 2f, 23f, valueColor, tight, right = true)
-            text(c, info, w - vw - 9f, y, 11f, white(0.76f), interReg, right = true)
-        }
-
-        /** Open screen: the same, with the details. */
-        fun detailed(c: Canvas, s: WidgetStore.Snapshot, w: Float, gap: Float = 0f) {
             var y = 20f + gap / 2
             val wk = s.week
             val f = wk?.let { it.cumulative / it.goal } ?: 0.0
-            val info = wk?.let { g ->
-                val d = g.cumulative - g.pace
-                "${(f * 100).toInt()}% of ${String.format("%.0f", g.goal)} · ${String.format("%.1f", kotlin.math.abs(d))} ${if (d >= 0) "ahead" else "behind"}"
-            } ?: ""
-            head(c, "Training week", info, wk?.let { String.format("%.1f", it.cumulative) } ?: "—", weekColor(f), y, w)
+            row(c, "Training", wk?.let { String.format("%.0f", it.cumulative) } ?: "—", wk?.let { "/${String.format("%.0f", it.goal)}" }, weekColor(f), y, w, 22f)
             y += 8f
-            weekBar(c, s, 0f, y, w, 12f)
-            y += 12f + 20f
-            weekDays(c, s, 0f, y, w)
-            y += 13f + 28f + gap
-
-            val sInfo = listOfNotNull(s.target?.let { "target ${String.format("%.1f", it)}" }, s.activity).joinToString(" · ")
-            head(c, "Strain", sInfo, s.strain?.let { String.format("%.1f", it) } ?: "—", Color.WHITE, y, w)
+            weekBar(c, s, 0f, y, w, 14f)
+            y += 14f + 30f + gap
+            row(c, "Strain", s.strain?.let { String.format("%.1f", it) } ?: "—", null, Color.WHITE, y, w, 22f)
             y += 8f
-            strainBar(c, s, 0f, y, w, 10f)
-            y += 10f + 28f + gap
+            strainBar(c, s, 0f, y, w, 14f)
+            y += 14f + 24f + gap
+            recSleep(c, s, 0f, y, 17f, 9.5f)
+        }
 
-            val sl = listOfNotNull(s.asleepMin?.let { hm(it) }, s.bedWake).joinToString(" · ")
-            head(c, "Sleep", sl, s.sleepScore?.toString() ?: "—", Color.WHITE, y, w)
-            y += 9f
+        /** One row's heading: a small label on the left, the big number (and a dim suffix) on the right. */
+        private fun row(c: Canvas, label: String, value: String, suffix: String?, color: Int, y: Float, w: Float, size: Float = 28f) {
+            cap(c, label, 0f, y, 11f)
+            var right = w
+            if (suffix != null) right -= text(c, suffix, w, y, size * 0.5f, white(0.6f), tightMid, right = true) + 2f
+            text(c, value, right, y + 2f, size, color, tight, right = true)
+        }
+
+        /** A plain thick bar filled to [f] in [color]. */
+        private fun fillBar(c: Canvas, x: Float, y: Float, w: Float, h: Float, f: Float, color: Int) {
+            rr(c, x, y, x + w, y + h, h / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = white(0.10f) })
+            if (f > 0f) rr(c, x, y, x + max(h, w * f.coerceIn(0f, 1f)), y + h, h / 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; setShadowLayer(6f, 0f, 0f, color) })
+        }
+
+        /** Open screen: four rows, each a label, one big number and one thick bar. */
+        fun detailed(c: Canvas, s: WidgetStore.Snapshot, w: Float, gap: Float = 0f) {
+            var y = 24f + gap / 2
+            val wk = s.week
+            val f = wk?.let { it.cumulative / it.goal } ?: 0.0
+            row(c, "Training", wk?.let { String.format("%.0f", it.cumulative) } ?: "—", wk?.let { "/${String.format("%.0f", it.goal)}" }, weekColor(f), y, w)
+            y += 10f
+            weekBar(c, s, 0f, y, w, 18f)
+            y += 18f + 36f + gap
+
+            row(c, "Strain", s.strain?.let { String.format("%.1f", it) } ?: "—", null, Color.WHITE, y, w)
+            y += 10f
+            strainBar(c, s, 0f, y, w, 16f)
+            y += 16f + 36f + gap
+
+            row(c, "Sleep", s.asleepMin?.let { hm(it) } ?: "—", s.sleepScore?.let { " · $it" }, Color.WHITE, y, w)
+            y += 10f
             val st = s.stages
             if (st.isNotEmpty() && s.sleepEnd > s.sleepStart) {
                 val span = (s.sleepEnd - s.sleepStart).toFloat()
                 st.forEach { (a, b, lvl) ->
                     val l = (a - s.sleepStart) / span * w; val r = (b - s.sleepStart) / span * w
-                    rr(c, l, y + lvl * 7f, max(l + 3f, r - 1f), y + lvl * 7f + 6f, 1.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = STAGE.getValue(lvl) })
+                    rr(c, l, y + lvl * 9f, max(l + 3f, r - 1f), y + lvl * 9f + 8f, 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = STAGE.getValue(lvl) })
                 }
-                y += 28f + 16f
-                var lx = 0f
-                listOf(Triple("Deep", s.deepMin, 3), Triple("REM", s.remMin, 1), Triple("Light", s.lightMin, 2)).forEach { (n, m, lvl) ->
-                    dot(c, lx + 3f, y - 4f, 3f, STAGE.getValue(lvl)); lx += 9f
-                    lx += cap(c, n, lx, y, 9.5f) + 5f
-                    lx += text(c, m?.let { hm(it) } ?: "—", lx, y, 12f, Color.WHITE, tightMid) + 14f
-                }
-            } else y += 14f
-            y += 27f + gap
-            var cx = 0f
-            dot(c, cx + 3.5f, y - 5f, 3.5f, recColor(s.recovery)); cx += 11f
-            cx += text(c, s.recovery?.toString() ?: "—", cx, y, 16f, Color.WHITE, tight) + 4f
-            cx += cap(c, "Rec", cx, y, 9.5f) + 16f
-            listOf(s.hrv?.toString() to "HRV", s.rhr?.toString() to "RHR", s.steps?.let { String.format("%,d", it) } to "Steps").forEach { (v, l) ->
-                cx += text(c, v ?: "—", cx, y, 13.5f, Color.WHITE, tightMid) + 4f
-                cx += cap(c, l, cx, y, 9.5f) + 16f
-            }
+            } else fillBar(c, 0f, y, w, 16f, (s.asleepMin ?: 0) / 540f, SLEEP)
+            y += 36f + 36f + gap
+
+            val rec = s.recovery
+            row(c, "Recovery", rec?.let { "$it%" } ?: "—", null, recColor(rec), y, w)
+            y += 10f
+            fillBar(c, 0f, y, w, 16f, (rec ?: 0) / 100f, recColor(rec))
         }
 
         /** Lock-screen line: recovery, strain, sleep on the left; the week on the right. */
