@@ -109,7 +109,7 @@ object StrapManager {
                             afterSync()
                             // The strap sometimes answers "busy" to a history request: try again in 45 s (twice), then wait as usual.
                             busy = if (ok) 0 else busy + 1
-                            withTimeoutOrNull(if (busy in 1..2) 45_000L else SYNC_EVERY) { trigger.first() }
+                            withTimeoutOrNull(if (busy in 1..2) kotlin.time.Duration.parse("45s") else SYNC_EVERY) { trigger.first() }
                             if (link.disconnected) throw IOException("link dropped")
                         }
                     } finally {
