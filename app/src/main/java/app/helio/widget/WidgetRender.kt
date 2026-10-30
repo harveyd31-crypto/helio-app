@@ -95,13 +95,15 @@ object WidgetRender {
                 rr(c, px, y, min(px + sw - 2f, x + w), y + h, 3f, paint)
                 if (labels) {
                     val letter = "MTWTFSS"[i].toString()
-                    text(c, "$letter ${String.format("%.1f", d)}", px, y + h + 11f, 8.5f, if (i == wk.dayIndex) Color.WHITE else white(0.62f), tightMid)
+                    val full = "$letter ${String.format("%.1f", d)}"
+                    val m = Paint().apply { textSize = 8.5f; typeface = tightMid }
+                    val shown = when { m.measureText(full) <= sw - 3f -> full; m.measureText(letter) <= sw - 2f -> letter; else -> null }
+                    shown?.let { text(c, it, px, y + h + 11f, 8.5f, if (i == wk.dayIndex) Color.WHITE else white(0.62f), tightMid) }
                 }
                 px += sw
             }
             val gx = x + (wk.goal / scale * w).toFloat()
             rr(c, gx - 1f, y - 3f, gx + 1f, y + h + 3f, 1f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
-            if (labels) text(c, String.format("%.0f", wk.goal), gx + 4f, y - 4f, 8.5f, Color.WHITE, tightMid)
             val ax = x + (min(wk.pace, scale) / scale * w).toFloat()
             c.drawPath(Path().apply { moveTo(ax - 3f, y + h + 6.5f); lineTo(ax + 3f, y + h + 6.5f); lineTo(ax, y + h + 2.5f); close() },
                 Paint(Paint.ANTI_ALIAS_FLAG).apply { color = white(0.85f) })
@@ -160,7 +162,7 @@ object WidgetRender {
             val f = wk?.let { it.cumulative / it.goal } ?: 0.0
             val info = wk?.let { g ->
                 val d = g.cumulative - g.pace
-                "${(f * 100).toInt()}% · ${if (d >= 0) "+" else "−"}${String.format("%.1f", kotlin.math.abs(d))} ${if (d >= 0) "ahead" else "behind"}"
+                "${(f * 100).toInt()}% of ${String.format("%.0f", g.goal)} · ${String.format("%.1f", kotlin.math.abs(d))} ${if (d >= 0) "ahead" else "behind"}"
             } ?: ""
             head(c, "Week", info, wk?.let { String.format("%.1f", it.cumulative) } ?: "—", weekColor(f), x, y, w)
             y += 6f
