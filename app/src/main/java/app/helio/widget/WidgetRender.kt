@@ -61,7 +61,9 @@ object WidgetRender {
         return draw(wDp, hDp, density, card) { c, p ->
             c.translate(pad, pad)
             c.scale(k, k)
-            if (detailed) p.detailed(c, s, bw) else p.minimal(c, s, bw)
+            // Stretch the rows across the full width the scale leaves (bars get longer, text stays the same size).
+            val fullW = ((wDp - 2 * pad) / k).coerceAtLeast(bw)
+            if (detailed) p.detailed(c, s, fullW) else p.minimal(c, s, fullW)
         }
     }
 
