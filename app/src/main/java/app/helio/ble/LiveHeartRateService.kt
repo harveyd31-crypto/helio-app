@@ -125,7 +125,10 @@ class LiveHeartRateService : Service() {
                     this@LiveHeartRateService,
                     onStatus = { s, name -> setStatus(s, name) },
                     onHeartRate = { bpm -> onBpm(bpm) },
-                    afterSync = { Repository.refresh(applicationContext) },
+                    afterSync = {
+                        Repository.refresh(applicationContext)
+                        notify(NOTIF_LIVE, liveNotification(lastLiveText))
+                    },
                 )
             }
         } else if (gatt == null && !scanning) connectOrScan()
@@ -261,7 +264,8 @@ class LiveHeartRateService : Service() {
                 lastWidget = now
                 WidgetStore.saveLive(this, state.hr, stress, true)
                 WidgetStore.refreshWidgets(this)
-                notify(NOTIF_LIVE, liveNotification("${state.hr ?: "—"} bpm · stress ${String.format("%.1f", stress)} ${Stress.label(stress).lowercase()}"))
+                lastLiveText = "${state.hr ?: "—"} bpm · stress ${String.format("%.1f", stress)} ${Stress.label(stress).lowercase()}"
+                notify(NOTIF_LIVE, liveNotification(lastLiveText))
             }
 
             if (stress >= HIGH_STRESS) {
@@ -276,6 +280,8 @@ class LiveHeartRateService : Service() {
 
     // ── Notifications ─────────────────────────────────────────────────────────
 
+    private var lastLiveText = "Connected"
+
     private fun createChannels() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CH_LIVE, "Live heart rate", NotificationManager.IMPORTANCE_LOW))
@@ -286,15 +292,39 @@ class LiveHeartRateService : Service() {
         this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE,
     )
 
-    private fun liveNotification(text: String): Notification = NotificationCompat.Builder(this, CH_LIVE)
-        .setSmallIcon(R.drawable.ic_stat_heart)
-        .setContentTitle("Helio live")
-        .setContentText(text)
+    /**
+     * The ongoing notification doubles as the lock-screen view: the title carries recovery, strain
+     * and sleep, and the card draws the widget's week and strain (one line collapsed, the full
+     * widget expanded). Public, so the lock screen shows it.
+     */
+    private fun liveNotification(text: String): Notification {
+        val s = WidgetStore.read(this)
+        val title = listOfNotNull(
+            s.recovery?.let { "Recovery $it%" }, s.strain?.let { "Strain ${String.format("%.1f", it)}" }, s.sleepScore?.let { "Sleep $it" },
+        ).joinToString(" · ").ifEmpty { "Helio" }
+        val d = resources.displayMetrics.density
+        val b = NotificationCompat.Builder(this, CH_LIVE)
+            .setSmallIcon(R.drawable.ic_stat_heart)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+        try {
+            val small = android.widget.RemoteViews(packageName, R.layout.notif_image).apply {
+                setImageViewBitmap(R.id.notif_image, app.helio.widget.WidgetRender.strip(this@LiveHeartRateService, s, d))
+            }
+            val big = android.widget.RemoteViews(packageName, R.layout.notif_image).apply {
+                setImageViewBitmap(R.id.notif_image, app.helio.widget.WidgetRender.render(this@LiveHeartRateService, s, 340f, 152f, d, card = true))
+            }
+            b.setStyle(NotificationCompat.DecoratedCustomViewStyle()).setCustomContentView(small).setCustomBigContentView(big)
+        } catch (e: Exception) { }
+        return b
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setContentIntent(openApp())
         .addAction(0, "Stop", PendingIntent.getService(this, 1, Intent(this, LiveHeartRateService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE))
         .build()
+    }
 
     private fun alertNotification(stress: Double): Notification = NotificationCompat.Builder(this, CH_ALERT)
         .setSmallIcon(R.drawable.ic_stat_heart)

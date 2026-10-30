@@ -114,12 +114,12 @@ class RenderTest {
     }
 
     /** The widget drawn as on a home screen: [w]×[h] dp on a dark wallpaper. */
-    private fun widget(name: String, w: Float, h: Float) {
+    private fun widget(name: String, w: Float, h: Float, strip: Boolean = false, card: Boolean = false) {
         val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         app.helio.widget.WidgetStore.saveDays(ctx, days)
         val snap = app.helio.widget.WidgetStore.read(ctx)
         val density = 2f
-        val bmp = app.helio.widget.WidgetRender.render(ctx, snap, w, h, density)
+        val bmp = if (strip) app.helio.widget.WidgetRender.strip(ctx, snap, density) else app.helio.widget.WidgetRender.render(ctx, snap, w, h, density, card)
         val out = android.graphics.Bitmap.createBitmap(((w + 48) * density).toInt(), ((h + 48) * density).toInt(), android.graphics.Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(out)
         c.drawPaint(android.graphics.Paint().apply {
@@ -131,7 +131,9 @@ class RenderTest {
     }
 
     @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget1_cover() = widget("widget1_cover", 210f, 150f)
-    @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget2_open() = widget("widget2_open", 350f, 250f)
+    @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget2_open() = widget("widget2_open", 390f, 300f)
+    @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget3_lock_line() = widget("widget3_lock_line", 340f, 46f, strip = true)
+    @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget4_lock_card() = widget("widget4_lock_card", 340f, 152f, card = true)
 
     @Config(qualifiers = "w880dp-h840dp-xhdpi") @Test fun fold1_roundtimer() = shot("fold1_roundtimer") {
         val w = session(WorkoutType.MuayThai)
