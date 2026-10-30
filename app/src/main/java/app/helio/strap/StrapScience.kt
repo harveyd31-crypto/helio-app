@@ -34,6 +34,9 @@ import kotlin.math.roundToInt
  * VO2 max blend, estimated age, live stress) keep running on top of these days.
  */
 object StrapScience {
+    private const val INPUTS = "helio_science_inputs"
+    private val cache = java.util.concurrent.ConcurrentHashMap<LocalDate, DaySummary>()
+    @Volatile private var cacheKey: String? = null
     private val CHART_START: LocalTime = LocalTime.of(4, 30)
     private val CHART_END: LocalTime = LocalTime.of(23, 0)
 
@@ -55,11 +58,26 @@ object StrapScience {
         val weights = profile.weightKg?.let { listOf(WeightEntry(Instant.now().minusSeconds(86_400), it.toFloat())) } ?: emptyList()
         val data = store.scienceData(zones, sProfile, weights, zones.rawFrom(first), zones.start(today.plusDays(2)))
         val science = Science(data, store.derived)
-        science.rederive(since = first)
+        // Only work out again what changed (as Ridge does): everything after an import or a profile
+        // change, otherwise from the earliest day the last sync touched. Saves battery on every sync.
+        val inputs = "$sProfile|$weights|$count|R1".hashCode().toString()
+        val pending = store.underivedFrom()
+        val from: LocalDate? = when {
+            store.metaValue(INPUTS) != inputs || store.derivedThrough() == null -> first
+            pending != null -> maxOf(first, pending.atZone(zone).toLocalDate())
+            else -> null
+        }
+        if (from != null) store.batch { science.rederive(since = from) }
+        pending?.let(store::clearUnderived)
+        if (from != null) store.setMetaValue(INPUTS, inputs)
+        if (cacheKey != inputs) { cache.clear(); cacheKey = inputs }
+        // Days before the changed ones keep last time's summary; yesterday and today are always fresh.
+        val freshFrom = minOf(from ?: today, today.minusDays(1))
         val now = Instant.now()
 
         return (0 until count).map { k ->
             val day = first.plusDays(k.toLong())
+            if (day < freshFrom) cache[day]?.let { return@map it }
             val sum = science.daySummary(day, now)
             val series = science.daySeries(day, listOf("hr", "stress", "respiratory_rate"))
             val hr = series.series["hr"].orEmpty().map { it.at.toEpochMilli() to it.value.roundToInt() }
@@ -165,7 +183,7 @@ object StrapScience {
                     cardioLoad = strainCard?.cardioLoad, typicalLoad = strainCard?.typicalLoad,
                 ),
             )
-        }
+        }.also { list -> list.forEach { cache[it.date] = it } }
     }
 
     /** Best-guess Zepp sport codes (unverified on the Helio); anything else shows as a plain workout. */
