@@ -113,6 +113,26 @@ class RenderTest {
             progress = { SportProgressCard(WorkoutType.Tennis, all, { Workouts.kindOf(it) }, hrMax) }) {}
     }
 
+    /** The widget drawn as on a home screen: [w]×[h] dp on a dark wallpaper. */
+    private fun widget(name: String, w: Float, h: Float) {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        app.helio.widget.WidgetStore.saveDays(ctx, days)
+        val snap = app.helio.widget.WidgetStore.read(ctx)
+        val density = 2f
+        val bmp = app.helio.widget.WidgetRender.render(ctx, snap, w, h, density)
+        val out = android.graphics.Bitmap.createBitmap(((w + 48) * density).toInt(), ((h + 48) * density).toInt(), android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(out)
+        c.drawPaint(android.graphics.Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, out.width.toFloat(), out.height.toFloat(),
+                intArrayOf(0xFF33506A.toInt(), 0xFF121820.toInt(), 0xFF5A3B4E.toInt()), null, android.graphics.Shader.TileMode.CLAMP)
+        })
+        c.drawBitmap(bmp, null, android.graphics.RectF(24 * density, 24 * density, (24 + w) * density, (24 + h) * density), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+        out.captureRoboImage("build/renders/$name.png")
+    }
+
+    @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget1_cover() = widget("widget1_cover", 210f, 150f)
+    @Config(qualifiers = "w400dp-h800dp-xhdpi") @Test fun widget2_open() = widget("widget2_open", 350f, 250f)
+
     @Config(qualifiers = "w880dp-h840dp-xhdpi") @Test fun fold1_roundtimer() = shot("fold1_roundtimer") {
         val w = session(WorkoutType.MuayThai)
         RoundsScreen(

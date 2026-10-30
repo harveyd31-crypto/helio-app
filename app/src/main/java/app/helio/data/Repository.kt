@@ -89,7 +89,8 @@ object Repository {
             if (d.isNotEmpty()) {
                 _days.value = d
                 _source.value = DataSource.Strap
-                WidgetStore.saveDay(app, d.last())
+                WidgetStore.saveDays(app, d)
+                WidgetStore.refreshWidgets(app)
                 return
             }
         }
@@ -106,6 +107,7 @@ object Repository {
                 }
             }
         }
-        WidgetStore.saveDay(app, _days.value.last())
+        WidgetStore.saveDays(app, _days.value)
+        WidgetStore.refreshWidgets(app)
     }
 }

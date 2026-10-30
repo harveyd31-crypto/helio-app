@@ -55,18 +55,21 @@ object StrapScience {
             sex = profile.male?.let { if (it) "male" else "female" },
             dob = profile.birthYear?.let { LocalDate.of(it, 7, 1) },
         )
-        val weights = profile.weightKg?.let { listOf(WeightEntry(Instant.now().minusSeconds(86_400), it.toFloat())) } ?: emptyList()
-        val data = store.scienceData(zones, sProfile, weights, zones.rawFrom(first), zones.start(today.plusDays(2)))
-        val science = Science(data, store.derived)
+        // A fixed date for the weight, so the inputs (and the "what changed" check) stay the same between syncs.
+        val weights = profile.weightKg?.let { listOf(WeightEntry(Instant.parse("2020-01-01T00:00:00Z"), it.toFloat())) } ?: emptyList()
         // Only work out again what changed (as Ridge does): everything after an import or a profile
         // change, otherwise from the earliest day the last sync touched. Saves battery on every sync.
-        val inputs = "$sProfile|$weights|$count|R1".hashCode().toString()
+        val inputs = "${profile.birthYear}|${profile.male}|${profile.heightCm}|${profile.weightKg}|R1".hashCode().toString()
         val pending = store.underivedFrom()
         val from: LocalDate? = when {
-            store.metaValue(INPUTS) != inputs || store.derivedThrough() == null -> first
-            pending != null -> maxOf(first, pending.atZone(zone).toLocalDate())
+            store.metaValue(INPUTS) != inputs || store.derivedThrough() == null -> today.minusDays(179)
+            pending != null -> pending.atZone(zone).toLocalDate()
             else -> null
         }
+        // Raw data from far enough back for both what is shown and what is re-derived.
+        val dataFrom = if (from != null && from < first) from else first
+        val data = store.scienceData(zones, sProfile, weights, zones.rawFrom(dataFrom), zones.start(today.plusDays(2)))
+        val science = Science(data, store.derived)
         if (from != null) store.batch { science.rederive(since = from) }
         pending?.let(store::clearUnderived)
         if (from != null) store.setMetaValue(INPUTS, inputs)
