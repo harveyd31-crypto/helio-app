@@ -158,6 +158,14 @@ object Workouts {
 
     fun discard() { _active.value = null }
 
+    /** Strain of the sessions recorded in Helio, per day, for the weekly training goal. */
+    fun strainByDay(list: List<Workout>, p: Profile): Map<java.time.LocalDate, Double> {
+        val zone = java.time.ZoneId.systemDefault()
+        val hrMax = p.age?.let { 208 - 0.7 * it } ?: 190.0
+        return list.groupBy { java.time.Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() }
+            .mapValues { (_, ws) -> ws.sumOf { Strain.fromHeartRate(it.hr, 60.0, hrMax) } }
+    }
+
     fun delete(ctx: Context, w: Workout) = save(ctx, _all.value.filter { it.start != w.start })
 
     private fun save(ctx: Context, list: List<Workout>) {

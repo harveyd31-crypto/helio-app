@@ -8,23 +8,29 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.math.roundToInt
 
 /**
- * Weekly strain goal.
+ * Weekly training goal: counts exercise only (each session's strain: strap workouts and the
+ * activities started in Helio), so a week of driving and walking doesn't fill it.
  *
- * Set from the four weeks before this Monday (your usual weekly load), nudged by the last seven
+ * Set from the four weeks before this Monday (your usual weekly training), never under two solid
+ * sessions' worth, nudged by the last seven
  * days of recovery: well recovered → up to +10 %, run down → down to −30 %. The ring's full circle is
  * 1.25 × the goal so going over the goal still shows. Pace = where you would be by today if you
  * spread the goal evenly over the week.
  */
 object WeeklyGoal {
-    private const val DEFAULT_WEEKLY = 90.0
-    private const val MIN_GOAL = 50.0
+    private const val DEFAULT_WEEKLY = 42.0
+    private const val MIN_GOAL = 28.0
 
-    fun compute(days: List<DaySummary>, selected: LocalDate): WeekGoal {
+    /** A day's training: its sessions' strain, plus any sessions recorded in Helio ([extra]). */
+    fun training(d: DaySummary, extra: Map<LocalDate, Double>): Double =
+        d.activities.sumOf { it.strain } + (extra[d.date] ?: 0.0)
+
+    fun compute(days: List<DaySummary>, selected: LocalDate, extra: Map<LocalDate, Double> = emptyMap()): WeekGoal {
         val monday = selected.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val byDate = days.associateBy { it.date }
 
-        val chronicDays = (1..28).mapNotNull { byDate[monday.minusDays(it.toLong())]?.strain }
-        val chronicWeekly = if (chronicDays.size >= 7) chronicDays.sum() / chronicDays.size * 7 else DEFAULT_WEEKLY
+        val chronicDays = (1..28).mapNotNull { byDate[monday.minusDays(it.toLong())]?.let { d -> training(d, extra) } }
+        val chronicWeekly = if (chronicDays.size >= 14) chronicDays.sum() / chronicDays.size * 7 else DEFAULT_WEEKLY
 
         val recent = (0..6).mapNotNull { byDate[selected.minusDays(it.toLong())]?.recovery }
         val avgRec = if (recent.isNotEmpty()) recent.average() else 60.0
@@ -32,7 +38,7 @@ object WeeklyGoal {
 
         val goal = (chronicWeekly * factor).coerceAtLeast(MIN_GOAL).roundToInt().toDouble()
         val dayIndex = (selected.toEpochDay() - monday.toEpochDay()).toInt()
-        val daily = (0..6).map { k -> if (k <= dayIndex) byDate[monday.plusDays(k.toLong())]?.strain ?: 0.0 else null }
+        val daily = (0..6).map { k -> if (k <= dayIndex) byDate[monday.plusDays(k.toLong())]?.let { training(it, extra) } ?: 0.0 else null }
         val cumulative = daily.filterNotNull().sum()
         val pace = goal * (dayIndex + 1) / 7.0
         val left = (goal - cumulative).coerceAtLeast(0.0)

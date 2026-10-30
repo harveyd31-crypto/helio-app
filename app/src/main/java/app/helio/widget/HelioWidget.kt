@@ -59,7 +59,7 @@ object WidgetStore {
     /** The last day of [days] plus its week, as the widget draws them. */
     fun saveDays(ctx: Context, days: List<DaySummary>) {
         val d = days.lastOrNull() ?: return
-        val g = WeeklyGoal.compute(days, d.date)
+        val g = WeeklyGoal.compute(days, d.date, app.helio.data.Workouts.strainByDay(app.helio.data.Workouts.all.value, app.helio.data.Repository.profile.value))
         val hm = DateTimeFormatter.ofPattern("HH:mm")
         val o = JSONObject().apply {
             put("week", JSONObject().apply {

@@ -126,7 +126,9 @@ fun HomeScreen(
 ) {
     val expanded = fold == FoldMode.Open
     val day = days[selected]
-    val goal = remember(days, selected) { WeeklyGoal.compute(days, day.date) }
+    val goal = remember(days, selected, workouts, profile) {
+        WeeklyGoal.compute(days, day.date, app.helio.data.Workouts.strainByDay(workouts, profile))
+    }
     val vo2 = remember(days, selected, profile, tests) { Vo2Max.compute(days, profile, day.date, tests) }
     val sample = source == DataSource.Sample
     val bodyAge = remember(days, selected, profile, vo2.value) {

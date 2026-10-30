@@ -164,7 +164,7 @@ fun WeeklyGoalCard(goal: WeekGoal, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("WEEKLY STRAIN GOAL", style = cap(11.sp, Color.White), modifier = Modifier.weight(1f))
+                Text("WEEKLY TRAINING GOAL", style = cap(11.sp, Color.White), modifier = Modifier.weight(1f))
                 Text("DAY ${goal.dayIndex + 1}/7", style = cap(10.sp))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

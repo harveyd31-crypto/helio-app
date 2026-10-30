@@ -180,7 +180,7 @@ object WidgetRender {
         /** Cover screen: week, strain, recovery and sleep. Nothing else. */
         fun minimal(c: Canvas, s: WidgetStore.Snapshot, w: Float, gap: Float = 0f) {
             var y = 18f + gap / 2
-            cap(c, "Week", 0f, y)
+            cap(c, "Training", 0f, y)
             val f = s.week?.let { it.cumulative / it.goal } ?: 0.0
             text(c, s.week?.let { String.format("%.1f", it.cumulative) } ?: "—", w, y + 2f, 21f, weekColor(f), tight, right = true)
             y += 7f
@@ -209,7 +209,7 @@ object WidgetRender {
                 val d = g.cumulative - g.pace
                 "${(f * 100).toInt()}% of ${String.format("%.0f", g.goal)} · ${String.format("%.1f", kotlin.math.abs(d))} ${if (d >= 0) "ahead" else "behind"}"
             } ?: ""
-            head(c, "Week", info, wk?.let { String.format("%.1f", it.cumulative) } ?: "—", weekColor(f), y, w)
+            head(c, "Training week", info, wk?.let { String.format("%.1f", it.cumulative) } ?: "—", weekColor(f), y, w)
             y += 8f
             weekBar(c, s, 0f, y, w, 12f)
             y += 12f + 20f

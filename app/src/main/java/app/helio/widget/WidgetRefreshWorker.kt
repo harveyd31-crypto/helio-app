@@ -19,6 +19,7 @@ class WidgetRefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
     override suspend fun doWork(): Result {
         val app = applicationContext
         Repository.loadProfile(app)
+        app.helio.data.Workouts.load(app)
         try {
             if (StrapScience.hasData(app)) {
                 val days = StrapScience.days(app, Repository.profile.value, 35)
