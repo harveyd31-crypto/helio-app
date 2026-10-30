@@ -7,6 +7,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import app.helio.data.Repository
+import app.helio.data.Workouts
 import app.helio.strap.StrapScience
 import java.util.concurrent.TimeUnit
 
@@ -19,7 +20,7 @@ class WidgetRefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
     override suspend fun doWork(): Result {
         val app = applicationContext
         Repository.loadProfile(app)
-        app.helio.data.Workouts.load(app)
+        Workouts.load(app)
         try {
             if (StrapScience.hasData(app)) {
                 val days = StrapScience.days(app, Repository.profile.value, 35)
