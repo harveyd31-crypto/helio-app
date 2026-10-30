@@ -120,7 +120,10 @@ object StrapScience {
             val need = sum.sleep.needMin ?: 480.0
             val strainCard = sum.strain.shown
             val recovery = sum.recovery.shown?.value
-            val strain = strainCard?.value ?: if (hr.size > 60) Strain.fromHeartRate(hr, rest ?: 60.0) else null
+            // Helio's day strain counts all waking effort (WHOOP-style); Ridge's training load stays in the text.
+            val hrMax = profile.age?.let { 208 - 0.7 * it } ?: 190.0
+            val sleepSpans = series.sleep.map { it.start.toEpochMilli() to it.end.toEpochMilli() }
+            val strain = if (hr.size > 60) Strain.day(hr, rest ?: 60.0, hrMax, sleepSpans) else strainCard?.value
             val zonesMin = strainCard?.zoneMinutes
 
             val workouts = data.workouts(dayStart, dayEnd).map { w ->

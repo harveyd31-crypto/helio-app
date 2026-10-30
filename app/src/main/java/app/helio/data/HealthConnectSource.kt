@@ -130,7 +130,7 @@ class HealthConnectSource(private val ctx: Context) {
             val rest = rhr[date] ?: percentile(sleepHr.map { it.second.toDouble() }, 0.10)
                 ?: percentile(dayHr.map { it.second.toDouble() }, 0.05)
 
-            val strain = if (dayHr.size >= 30) Strain.fromHeartRate(dayHr, rest ?: 60.0) else null
+            val strain = if (dayHr.size >= 30) Strain.day(dayHr, rest ?: 60.0, hrMax) else null
 
             val sleepInfo = sleep?.let { s ->
                 val total = Duration.between(s.startTime, s.endTime).toMinutes()

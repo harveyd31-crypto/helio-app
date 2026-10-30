@@ -447,8 +447,9 @@ private fun StrainDetailTab(
             target?.let { val x = (it / 21.0).toFloat() * size.width; drawLine(Color.White, androidx.compose.ui.geometry.Offset(x, -4f), androidx.compose.ui.geometry.Offset(x, h + 4f), 3f) }
         }
         day.extras?.cardioLoad?.let { load ->
-            Text(String.format("Cardio load %.0f", load) + (day.extras.typicalLoad?.let { String.format(" · your typical %.0f", it) } ?: "") +
-                ". Strain is placed against your own heavy days (90-day high), so 21 means hard for you.", style = body(12.sp, HelioColors.TextMuted))
+            Text("Strain counts every waking minute your heart works above rest, on a 0–21 scale that gets harder to climb: a day at home is about 4–7, a hard session 14+. " +
+                String.format("Training load (workouts and brisk movement) %.0f", load) + (day.extras.typicalLoad?.let { String.format(" · your typical %.0f", it) } ?: "") + ".",
+                style = body(12.sp, HelioColors.TextMuted))
         }
         day.extras?.strainWithheld?.let { Text(it, style = body(12.sp, HelioColors.RecYellow)) }
         Text(
