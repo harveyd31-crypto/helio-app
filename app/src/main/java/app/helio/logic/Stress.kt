@@ -54,8 +54,8 @@ object Strain {
 
     /**
      * Day strain, WHOOP-style: every waking minute your heart works above rest counts (Banister
-     * TRIMP on heart-rate reserve; minutes under 10 % of reserve, i.e. truly at rest, and sleep
-     * don't), on a 0–21 scale that gets harder to climb: 21·ln(1 + TRIMP/40)/ln(11).
+     * TRIMP on heart-rate reserve; minutes under 20 % of reserve, i.e. sitting or standing around,
+     * and sleep don't), on a 0–21 scale that gets harder to climb: 21·ln(1 + TRIMP/40)/ln(11).
      * Roughly: a day at home 4–7, with a walk 7–9, a hard 75-min session 14–16, a huge day 18+.
      */
     fun day(samples: List<Pair<Long, Int>>, restingHr: Double, maxHr: Double, sleep: List<Pair<Long, Long>> = emptyList()): Double {
@@ -66,7 +66,7 @@ object Strain {
             if (sleep.any { t >= it.first && t < it.second }) continue
             val dtMin = ((t - samples[i - 1].first) / 60000.0).coerceIn(0.0, 5.0)
             val hrr = ((samples[i].second - restingHr) / (maxHr - restingHr)).coerceIn(0.0, 1.0)
-            if (hrr < 0.10) continue
+            if (hrr < 0.20) continue
             trimp += dtMin * hrr * 0.64 * exp(1.92 * hrr)
         }
         return (21.0 * ln(1 + trimp / 40.0) / ln(11.0)).coerceIn(0.0, 21.0)

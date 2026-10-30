@@ -55,7 +55,7 @@ object WidgetRender {
         val detailed = wDp >= 260f && hDp >= 175f
         val bw = if (detailed) DET_W else MIN_W
         val bh = if (detailed) DET_H else MIN_H
-        val pad = if (card) 14f else 4f
+        val pad = if (card) 14f else 8f
         // Fill the width, keep the proportions, never overflow the height.
         val k = min((wDp - 2 * pad) / bw, (hDp - 2 * pad) / bh).coerceIn(0.6f, 2.2f)
         return draw(wDp, hDp, density, card) { c, p ->
@@ -63,7 +63,9 @@ object WidgetRender {
             c.scale(k, k)
             // Stretch the rows across the full width the scale leaves (bars get longer, text stays the same size).
             val fullW = ((wDp - 2 * pad) / k).coerceAtLeast(bw)
-            if (detailed) p.detailed(c, s, fullW) else p.minimal(c, s, fullW)
+            // Spare height is shared between the sections, so the widget fills its frame.
+            val spare = (((hDp - 2 * pad) / k) - bh).coerceIn(0f, bh * 0.6f)
+            if (detailed) p.detailed(c, s, fullW, spare / 4f) else p.minimal(c, s, fullW, spare / 3f)
         }
     }
 
@@ -176,19 +178,19 @@ object WidgetRender {
         }
 
         /** Cover screen: week, strain, recovery and sleep. Nothing else. */
-        fun minimal(c: Canvas, s: WidgetStore.Snapshot, w: Float) {
-            var y = 16f
+        fun minimal(c: Canvas, s: WidgetStore.Snapshot, w: Float, gap: Float = 0f) {
+            var y = 18f + gap / 2
             cap(c, "Week", 0f, y)
             val f = s.week?.let { it.cumulative / it.goal } ?: 0.0
             text(c, s.week?.let { String.format("%.1f", it.cumulative) } ?: "—", w, y + 2f, 21f, weekColor(f), tight, right = true)
             y += 7f
             weekBar(c, s, 0f, y, w, 11f)
-            y += 11f + 25f
+            y += 11f + 25f + gap
             cap(c, "Strain", 0f, y)
             text(c, s.strain?.let { String.format("%.1f", it) } ?: "—", w, y + 2f, 21f, Color.WHITE, tight, right = true)
             y += 7f
             strainBar(c, s, 0f, y, w, 11f)
-            y += 11f + 22f
+            y += 11f + 22f + gap
             recSleep(c, s, 0f, y, 15f, 9f)
         }
 
@@ -199,8 +201,8 @@ object WidgetRender {
         }
 
         /** Open screen: the same, with the details. */
-        fun detailed(c: Canvas, s: WidgetStore.Snapshot, w: Float) {
-            var y = 18f
+        fun detailed(c: Canvas, s: WidgetStore.Snapshot, w: Float, gap: Float = 0f) {
+            var y = 20f + gap / 2
             val wk = s.week
             val f = wk?.let { it.cumulative / it.goal } ?: 0.0
             val info = wk?.let { g ->
@@ -212,13 +214,13 @@ object WidgetRender {
             weekBar(c, s, 0f, y, w, 12f)
             y += 12f + 20f
             weekDays(c, s, 0f, y, w)
-            y += 13f + 28f
+            y += 13f + 28f + gap
 
             val sInfo = listOfNotNull(s.target?.let { "target ${String.format("%.1f", it)}" }, s.activity).joinToString(" · ")
             head(c, "Strain", sInfo, s.strain?.let { String.format("%.1f", it) } ?: "—", Color.WHITE, y, w)
             y += 8f
             strainBar(c, s, 0f, y, w, 10f)
-            y += 10f + 28f
+            y += 10f + 28f + gap
 
             val sl = listOfNotNull(s.asleepMin?.let { hm(it) }, s.bedWake).joinToString(" · ")
             head(c, "Sleep", sl, s.sleepScore?.toString() ?: "—", Color.WHITE, y, w)
@@ -228,7 +230,7 @@ object WidgetRender {
                 val span = (s.sleepEnd - s.sleepStart).toFloat()
                 st.forEach { (a, b, lvl) ->
                     val l = (a - s.sleepStart) / span * w; val r = (b - s.sleepStart) / span * w
-                    rr(c, l, y + lvl * 7f, max(l + 1.2f, r - 1f), y + lvl * 7f + 6f, 1.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = STAGE.getValue(lvl) })
+                    rr(c, l, y + lvl * 7f, max(l + 3f, r - 1f), y + lvl * 7f + 6f, 1.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = STAGE.getValue(lvl) })
                 }
                 y += 28f + 16f
                 var lx = 0f
@@ -238,7 +240,7 @@ object WidgetRender {
                     lx += text(c, m?.let { hm(it) } ?: "—", lx, y, 12f, Color.WHITE, tightMid) + 14f
                 }
             } else y += 14f
-            y += 27f
+            y += 27f + gap
             var cx = 0f
             dot(c, cx + 3.5f, y - 5f, 3.5f, recColor(s.recovery)); cx += 11f
             cx += text(c, s.recovery?.toString() ?: "—", cx, y, 16f, Color.WHITE, tight) + 4f

@@ -103,10 +103,13 @@ object StrapManager {
                     if (!hr) log("no standard heart-rate broadcast on this strap; history only")
                     retry = 0
                     try {
+                        var busy = 0
                         while (true) {
-                            sync(ctx, session, link)
+                            val ok = sync(ctx, session, link, quiet = busy < 2)
                             afterSync()
-                            withTimeoutOrNull(SYNC_EVERY) { trigger.first() }
+                            // The strap sometimes answers "busy" to a history request: try again in 45 s (twice), then wait as usual.
+                            busy = if (ok) 0 else busy + 1
+                            withTimeoutOrNull(if (busy in 1..2) 45_000L else SYNC_EVERY) { trigger.first() }
                             if (link.disconnected) throw IOException("link dropped")
                         }
                     } finally {
@@ -134,7 +137,8 @@ object StrapManager {
         }
     }
 
-    private suspend fun sync(ctx: Context, session: StrapSession, link: HelioStrapLink) {
+    /** One history sync; true when everything came through. [quiet]: a retry, so a failure isn't shown yet. */
+    private suspend fun sync(ctx: Context, session: StrapSession, link: HelioStrapLink, quiet: Boolean = false): Boolean {
         val store = store(ctx)
         _status.value = _status.value.copy(syncing = true, progress = "Starting", error = null)
         session.requestServices()
@@ -142,10 +146,17 @@ object StrapManager {
         val battery = link.batteryPercent()
         store.save(result, battery)
         log("sync: ${result.samples.size} samples, ${result.sleepSessions.size} nights, ${result.workouts.size} workouts, failure=${result.failure}")
+        val f = result.failure
         _status.value = Status(
-            lastSync = Instant.now(), syncing = false, progress = null, battery = battery ?: _status.value.battery,
-            error = result.failure?.let { "Sync stopped early: $it (what arrived was saved)" },
+            lastSync = if (f == null) Instant.now() else _status.value.lastSync ?: Instant.now(),
+            syncing = false, progress = null, battery = battery ?: _status.value.battery,
+            error = when {
+                f == null || quiet -> null
+                f is strap.protocol.fetch.FetchFailure.StartRejected -> "The strap was busy, so part of the history waits for the next sync (what arrived was saved)."
+                else -> "Sync stopped early: $f (what arrived was saved)"
+            },
         )
+        return f == null
     }
 
     private fun fail(msg: String) {
