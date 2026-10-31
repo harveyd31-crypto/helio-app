@@ -1,0 +1,40 @@
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:processDebugManifestForPackage
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:processDebugResources
+> Task :app:packageDebugUnitTestForUnitTest
+> Task :app:generateDebugUnitTestConfig
+> Task :strap-science:compileKotlin
+> Task :strap-science:compileJava NO-SOURCE
+> Task :strap-science:classes UP-TO-DATE
+> Task :strap-protocol:compileKotlin
+> Task :strap-science:jar
+> Task :strap-protocol:compileJava NO-SOURCE
+> Task :strap-protocol:classes UP-TO-DATE
+> Task :strap-protocol:jar
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+10-31 18:00:54.974  2860  2910 W HWUI    : Trying to start new animators on 0x7acf230f74d0 (UnprojectedRipple) without an animation handle!
+10-31 18:00:56.745  2860  2910 W HWUI    : Trying to start new animators on 0x7acf23883090 (UnprojectedRipple) without an animation handle!
+10-31 18:00:59.108  2860  2910 W HWUI    : Trying to start new animators on 0x7acf238e74f0 (UnprojectedRipple) without an animation handle!
+10-31 18:01:00.504  2860  2910 W HWUI    : Trying to start new animators on 0x7acf22f7aaf0 (UnprojectedRipple) without an animation handle!
+> Task :app:testDebugUnitTest
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_2-1793469588212.json
+
+BUILD SUCCESSFUL in 1m 17s
+30 actionable tasks: 30 executed
