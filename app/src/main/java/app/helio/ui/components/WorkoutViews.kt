@@ -125,6 +125,10 @@ fun RecordingView(active: Workouts.Active, hr: Int?, link: LinkStatus, hrMax: Do
             Text(if (link == LinkStatus.Live) "RECORDING" else "WAITING FOR HELIO", style = cap(11.sp, HelioColors.TextMuted))
         }
         Text(hms((now - active.start) / 1000), style = num(60.sp))
+        if (link != LinkStatus.Live) Text(
+            "Phone out of range: the strap keeps measuring, and the gap fills in from it at the next sync.",
+            style = body(12.sp, HelioColors.TextMuted),
+        )
         Row(verticalAlignment = Alignment.Bottom) {
             Text(hr?.toString() ?: "—", style = num(48.sp, color = zoneColors[zone]))
             Text("  bpm · zone $zone", style = body(14.sp, HelioColors.TextMuted), modifier = Modifier.padding(bottom = 10.dp))

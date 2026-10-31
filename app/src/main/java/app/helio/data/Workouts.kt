@@ -158,6 +158,31 @@ object Workouts {
 
     fun discard() { _active.value = null }
 
+    /**
+     * Fills the gaps in recent sessions (the phone out of Bluetooth range, the app stopped) with the
+     * heart rate the strap recorded itself, about once a minute, which arrives with the next sync.
+     * Live readings are kept; only stretches of more than 90 s without one are filled.
+     */
+    fun fillFromStrap(ctx: Context): Int {
+        if (_all.value.isEmpty()) load(ctx)
+        val store = try { app.helio.strap.StrapManager.store(ctx) } catch (e: Exception) { return 0 }
+        val since = System.currentTimeMillis() - 3 * 86_400_000L
+        var filled = 0
+        val updated = _all.value.map { w ->
+            if (w.end < since) return@map w
+            val strap = try { store.hrBetween(w.start, w.end) } catch (e: Exception) { emptyList() }
+            if (strap.isEmpty()) return@map w
+            val live = w.hr
+            val edges = listOf(w.start) + live.map { it.first } + listOf(w.end)
+            val gaps = edges.zipWithNext().filter { (a, b) -> b - a > 90_000 }
+            val add = strap.filter { (t, _) -> gaps.any { (a, b) -> t > a + 30_000 && t < b - 30_000 } }
+                .filter { (t, _) -> live.none { kotlin.math.abs(it.first - t) < 30_000 } }
+            if (add.isEmpty()) w else { filled++; w.copy(hr = (live + add).sortedBy { it.first }) }
+        }
+        if (filled > 0) save(ctx, updated)
+        return filled
+    }
+
     /** Strain of the sessions recorded in Helio, per day, for the weekly training goal. */
     fun strainByDay(list: List<Workout>, p: Profile): Map<java.time.LocalDate, Double> {
         val zone = java.time.ZoneId.systemDefault()

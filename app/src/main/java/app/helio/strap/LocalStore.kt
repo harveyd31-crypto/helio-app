@@ -385,6 +385,11 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "helio_strap.db",
 
     // ── restore from the server (D34 S5) ────────────────────────────────────
 
+    /** The strap's own heart rate between two instants (epoch ms), oldest first: what it measured while the phone was away. */
+    fun hrBetween(from: Long, to: Long): List<Pair<Long, Int>> = readableDatabase.rawQuery(
+        "SELECT ts, value FROM samples WHERE metric = 'hr' AND ts >= ? AND ts <= ? ORDER BY ts", arrayOf(from.toString(), to.toString()),
+    ).use { c -> buildList { while (c.moveToNext()) add(c.getLong(0) to c.getDouble(1).toInt()) } }
+
     /** True when the strap has never delivered anything here: a restore cannot clash with own data. */
     fun isEmpty(): Boolean = listOf("samples", "sleep_sessions", "workouts", "daily_totals", "restored_totals").all { t ->
         readableDatabase.rawQuery("SELECT 1 FROM $t LIMIT 1", null).use { !it.moveToFirst() }

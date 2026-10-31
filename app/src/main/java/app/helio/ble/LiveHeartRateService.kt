@@ -126,6 +126,7 @@ class LiveHeartRateService : Service() {
                     onStatus = { s, name -> setStatus(s, name) },
                     onHeartRate = { bpm -> onBpm(bpm) },
                     afterSync = {
+                        app.helio.data.Workouts.fillFromStrap(applicationContext)
                         Repository.refresh(applicationContext)
                         notify(NOTIF_LIVE, liveNotification(lastLiveText))
                     },

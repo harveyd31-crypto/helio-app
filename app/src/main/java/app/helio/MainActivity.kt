@@ -71,7 +71,10 @@ class MainActivity : ComponentActivity() {
         app.helio.data.Workouts.load(this)
         app.helio.data.RoundTimer.load(this)
         app.helio.widget.WidgetRefreshWorker.schedule(this)
-        lifecycleScope.launch { Repository.refresh(this@MainActivity) }
+        lifecycleScope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.helio.data.Workouts.fillFromStrap(this@MainActivity) }
+            Repository.refresh(this@MainActivity)
+        }
         if ((LiveHeartRateService.rememberedDevice(this) != null || app.helio.strap.StrapManager.pairing(this) != null) && LiveHeartRateService.hasPermissions(this)) {
             LiveHeartRateService.start(this)
         }
