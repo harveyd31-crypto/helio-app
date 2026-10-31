@@ -33,6 +33,7 @@ public class FetchJob(
     private var lastCounter = -1
     private var counterGap = false
     private var integrityRetries = 0
+    private var stateRetried = false
     private var expected = -1L
     private var packets = 0
     private val roundStats = mutableListOf<RoundStat>()
@@ -70,7 +71,12 @@ public class FetchJob(
     public fun fail(failure: FetchFailure): FetchOutput = if (finished != null) FetchOutput.NOTHING else finish(failure)
 
     private fun onStartReply(p: ByteArray): FetchOutput = when (val reply = Replies.startReply(p)) {
-        is Replies.StartReply.Rejected -> finish(FetchFailure.StartRejected(reply.status))
+        // 5 = an earlier request is still open on the strap (a dropped link mid-transfer): close it and ask once more.
+        is Replies.StartReply.Rejected -> if (reply.status == STATUS_INVALID_STATE && !stateRetried) {
+            stateRetried = true
+            rounds--
+            FetchOutput(listOf(ACK_KEEP, startRound()))
+        } else finish(FetchFailure.StartRejected(reply.status))
         Replies.StartReply.Malformed -> finish(FetchFailure.BadStartReply)
         is Replies.StartReply.Accepted -> {
             expected = reply.announced
@@ -80,14 +86,16 @@ public class FetchJob(
     }
 
     private fun endRound(): FetchOutput {
-        val short = round.size().toLong() != announcedBytes(code, expected)
+        // Per-second heart rate arrives zlib-compressed; the announced count is the inflated size.
+        val inflated = if (code == FetchType.SEC_HR) inflateOrNull(round.toByteArray()) else null
+        val short = if (inflated != null) false else round.size().toLong() != announcedBytes(code, expected)
         roundStats += RoundStat(expected, packets, round.size(), counterGap, short)
         if (counterGap || short) {
             if (++integrityRetries > MAX_INTEGRITY_RETRIES) return finish(FetchFailure.MissingPackets, ACK_KEEP)
             return FetchOutput(listOf(ACK_KEEP, startRound())) // same cursor, whole round discarded
         }
         integrityRetries = 0
-        val raw = round.toByteArray()
+        val raw = inflated ?: round.toByteArray()
         allRaw.write(raw)
         val decoded = ActivityParser.parse(code, raw, roundStart)
         samples += decoded
@@ -102,7 +110,7 @@ public class FetchJob(
         val candidate = when {
             code == FetchType.WORKOUTS ->
                 WorkoutParser.parseStream(allRaw.toByteArray()).maxOfOrNull { it.start }?.plus(ONE_MINUTE)
-            decoded.isNotEmpty() -> decoded.last().at.plus(ONE_MINUTE)
+            decoded.isNotEmpty() -> decoded.last().at.plus(if (code == FetchType.SEC_HR) Duration.ofSeconds(1) else ONE_MINUTE)
             (code == FetchType.ACTIVITY || code == FetchType.STRESS) && raw.isNotEmpty() -> {
                 // 0xFF gap-skip: an all-sentinel round decodes to nothing, so step past it by
                 // its own minute count or the pager re-requests the same window forever.
@@ -148,6 +156,25 @@ public class FetchJob(
         private const val CMD_START = 0x01
         private const val CMD_FETCH = 0x02
         private const val STATUS_OK = 0x01
+        private const val STATUS_INVALID_STATE = 0x05
+
+        /** A zlib stream (header 0x78) inflated, or null when [b] isn't one. */
+        internal fun inflateOrNull(b: ByteArray): ByteArray? {
+            if (b.size < 2 || (b[0].toInt() and 0xFF) != 0x78) return null
+            return try {
+                val inf = java.util.zip.Inflater()
+                inf.setInput(b)
+                val out = ByteArrayOutputStream()
+                val buf = ByteArray(8192)
+                while (!inf.finished()) {
+                    val n = inf.inflate(buf)
+                    if (n == 0 && (inf.needsInput() || inf.needsDictionary())) break
+                    out.write(buf, 0, n)
+                }
+                inf.end()
+                out.toByteArray().takeIf { it.isNotEmpty() }
+            } catch (e: Exception) { null }
+        }
         private val ACK_KEEP = byteArrayOf(0x03, 0x09)
         private val ONE_MINUTE: Duration = Duration.ofMinutes(1)
     }

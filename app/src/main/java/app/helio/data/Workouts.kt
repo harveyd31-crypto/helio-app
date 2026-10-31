@@ -170,14 +170,20 @@ object Workouts {
         var filled = 0
         val updated = _all.value.map { w ->
             if (w.end < since) return@map w
-            val strap = try { store.hrBetween(w.start, w.end) } catch (e: Exception) { emptyList() }
+            // The strap's per-second log first (a reading every few seconds), else its per-minute one.
+            val minute = try { store.hrBetween(w.start, w.end) } catch (e: Exception) { emptyList() }
+            val perSecond = try { store.hrBetween(w.start, w.end, "hr_s") } catch (e: Exception) { emptyList() }
+            var last = Long.MIN_VALUE
+            val strap = if (perSecond.size >= 10) perSecond.filter { (t, _) -> (t - last >= 5000).also { ok -> if (ok) last = t } } else minute
             if (strap.isEmpty()) return@map w
-            val live = w.hr
+            // Readings filled earlier from the minute log are replaced when the finer log has arrived since.
+            val minuteTs = minute.mapTo(HashSet()) { it.first }
+            val live = w.hr.filter { it.first !in minuteTs }
             val edges = listOf(w.start) + live.map { it.first } + listOf(w.end)
             val gaps = edges.zipWithNext().filter { (a, b) -> b - a > 90_000 }
-            val add = strap.filter { (t, _) -> gaps.any { (a, b) -> t > a + 30_000 && t < b - 30_000 } }
-                .filter { (t, _) -> live.none { kotlin.math.abs(it.first - t) < 30_000 } }
-            if (add.isEmpty()) w else { filled++; w.copy(hr = (live + add).sortedBy { it.first }) }
+            val add = strap.filter { (t, _) -> gaps.any { (a, b) -> t > a + 3_000 && t < b - 3_000 } }
+            val merged = (live + add).sortedBy { it.first }
+            if (merged == w.hr || add.isEmpty()) w else { filled++; w.copy(hr = merged) }
         }
         if (filled > 0) save(ctx, updated)
         return filled

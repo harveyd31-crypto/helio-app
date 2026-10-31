@@ -8,6 +8,9 @@ public data class Sample(val at: Instant, val metric: Metric, val value: Double)
 /** Every per-sample stream the strap delivers (spec/01 §7). [wireName] is the storage name. */
 public enum class Metric(public val wireName: String) {
     HR("hr"),
+
+    /** The strap's per-second heart-rate log (`0x57`, after OpenStrap): a sample every few seconds, kept apart from [HR]. */
+    HR_SECOND("hr_s"),
     STEPS("steps"),
     STRESS("stress"),
     TEMPERATURE_C("temperature_c"),

@@ -8,3 +8,6 @@ Android app (local store, Bluetooth link) from Ridge by TheCommishDeuce
 
 Stress curve and Pulse Age follow Pulse Mobile (github.com/adityaongit/pulse-mobile),
 PolyForm Noncommercial 1.0.0: personal, non-commercial use.
+
+The per-second heart-rate log (fetch type 0x57) and the meaning of fetch status 5 follow
+OpenStrap's protocol notes (github.com/sayed0am/openstrap, MIT / Apache-2.0).

@@ -314,7 +314,8 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "helio_strap.db",
         val (read, readArgs) = between("read_at", lo, hi)
         val (days, dayArgs) = between("day", from?.let { zones.dateOf(it).toEpochDay() }, until?.let { zones.dateOf(it).toEpochDay() })
         val samples = ArrayList<Sample>()
-        db.rawQuery("SELECT metric, ts, value FROM samples WHERE $inside ORDER BY ts", insideArgs).use { c ->
+        // The per-second heart-rate log is only for sessions; the science reads the per-minute stream.
+        db.rawQuery("SELECT metric, ts, value FROM samples WHERE metric != 'hr_s' AND $inside ORDER BY ts", insideArgs).use { c ->
             while (c.moveToNext()) {
                 val name = SERVER_METRICS[c.getString(0)] ?: continue
                 samples += Sample(Instant.ofEpochMilli(c.getLong(1)), name, c.getDouble(2))
@@ -386,8 +387,8 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "helio_strap.db",
     // ── restore from the server (D34 S5) ────────────────────────────────────
 
     /** The strap's own heart rate between two instants (epoch ms), oldest first: what it measured while the phone was away. */
-    fun hrBetween(from: Long, to: Long): List<Pair<Long, Int>> = readableDatabase.rawQuery(
-        "SELECT ts, value FROM samples WHERE metric = 'hr' AND ts >= ? AND ts <= ? ORDER BY ts", arrayOf(from.toString(), to.toString()),
+    fun hrBetween(from: Long, to: Long, metric: String = "hr"): List<Pair<Long, Int>> = readableDatabase.rawQuery(
+        "SELECT ts, value FROM samples WHERE metric = ? AND ts >= ? AND ts <= ? ORDER BY ts", arrayOf(metric, from.toString(), to.toString()),
     ).use { c -> buildList { while (c.moveToNext()) add(c.getLong(0) to c.getDouble(1).toInt()) } }
 
     /** True when the strap has never delivered anything here: a restore cannot clash with own data. */

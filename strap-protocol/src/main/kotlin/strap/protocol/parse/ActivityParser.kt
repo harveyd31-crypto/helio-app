@@ -35,7 +35,31 @@ public object ActivityParser {
         FetchType.HRV_SDNN -> sdnn(data)
         FetchType.PAI -> pai(data)
         FetchType.ODI -> odi(data)
+        FetchType.SEC_HR -> secondHr(data)
         else -> emptyList()
+    }
+
+    /**
+     * `0x57` per-second heart rate, already inflated: blocks of `start sec u32 · count u16 · hr[count] u8`,
+     * sample k at start + k s. 0xFF (and 0) slots are empty. A short block can repeat the next block's
+     * first second: the later value wins.
+     */
+    internal fun secondHr(data: ByteArray): List<Sample> {
+        val out = sortedMapOf<Long, Int>()
+        var i = 0
+        while (data.size - i >= 6) {
+            val start = Bytes.u32(data, i)
+            val count = Bytes.u16(data, i + 4)
+            i += 6
+            if (count == 0) continue
+            if (data.size - i < count) break
+            for (k in 0 until count) {
+                val hr = Bytes.u8(data, i + k)
+                if (hr in 25..230) out[start + k] = hr
+            }
+            i += count
+        }
+        return out.map { (sec, hr) -> Sample(Instant.ofEpochSecond(sec), Metric.HR_SECOND, hr.toDouble()) }
     }
 
     /** Bytes per minute of a round-relative stream, used by the pager's gap-skip. */
@@ -172,4 +196,6 @@ public object FetchType {
     public const val HRV: Int = 0x49
     public const val ODI: Int = 0x4A
     public const val HRV_SDNN: Int = 0x4E
+    /** Per-second heart rate, zlib-compressed blocks (OpenStrap docs/protocol/02 §3.2, verified on a Helio Strap). */
+    public const val SEC_HR: Int = 0x57
 }

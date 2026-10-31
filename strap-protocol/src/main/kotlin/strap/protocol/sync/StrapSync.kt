@@ -63,6 +63,9 @@ public class StrapSync(
             progress(label)
             fetchMetric(code, window.lastSampleAt[watermark], t)?.let { return it }
         }
+        // Optional, last: the per-second heart-rate log. A strap that refuses it costs nothing.
+        val lastSec = window.lastSampleAt[Metric.HR_SECOND]
+        fetch(FetchType.SEC_HR, lastSec?.plusSeconds(1) ?: t.minus(SyncPlan.SEC_HR_BACKFILL), SyncPlan.SEC_HR_ROUNDS, WORKOUT_TIMEOUT)
         return null
     }
 
@@ -138,6 +141,9 @@ public object SyncPlan {
     public const val ROUNDS: Int = 400
     public const val WORKOUT_ROUNDS: Int = 100
     public val BACKFILL: Duration = Duration.ofDays(30)
+    /** How far back the per-second log is first read, and how many rounds a sync may take for it. */
+    public val SEC_HR_BACKFILL: Duration = Duration.ofDays(3)
+    public const val SEC_HR_ROUNDS: Int = 200
 
     public fun metricSince(last: Instant?, now: Instant): Instant = last?.plusSeconds(60) ?: now.minus(BACKFILL)
 
