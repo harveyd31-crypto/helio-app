@@ -124,10 +124,12 @@ fun HomeScreen(
     onOpenRounds: () -> Unit = {},
     liveContent: @Composable () -> Unit,
 ) {
+    // One set of rules for sessions (no duplicates, max HR from what you reach, one strain per session): see Sessions.
+    val (days, sctx) = remember(days, workouts, profile) { app.helio.data.Sessions.normalize(days, workouts, profile) }
     val expanded = fold == FoldMode.Open
     val day = days[selected]
     val goal = remember(days, selected, workouts, profile) {
-        WeeklyGoal.compute(days, day.date, app.helio.data.Workouts.strainByDay(workouts, profile))
+        WeeklyGoal.compute(days, day.date, app.helio.data.Sessions.strainByDay(workouts, sctx))
     }
     val vo2 = remember(days, selected, profile, tests) { Vo2Max.compute(days, profile, day.date, tests) }
     val sample = source == DataSource.Sample
@@ -164,7 +166,7 @@ fun HomeScreen(
         workouts + days.flatMap { d -> d.activities.filter { it.hr.size > 10 }.map { a -> a.toWorkout() } }
     }
     val rest = (day.restingHr ?: 60).toDouble()
-    fun statsOf(w: app.helio.data.Workout) = app.helio.data.WorkoutMath.stats(w, vo2.hrMax, rest, profile)
+    fun statsOf(w: app.helio.data.Workout) = app.helio.data.Sessions.stats(w, sctx, profile)
     val zone = java.time.ZoneId.systemDefault()
     val dayWorkouts = workouts.filter { java.time.Instant.ofEpochMilli(it.start).atZone(zone).toLocalDate() == day.date }
         .map { it to statsOf(it) }
@@ -192,7 +194,7 @@ fun HomeScreen(
                     w, statsOf(w), history, onDelete = if (w in workouts) ({ onDeleteWorkout(w); detail = null }) else null, hrMax = vo2.hrMax,
                     kind = kind, onKind = { app.helio.data.Workouts.setKind(ctx, w, it) },
                     progress = if (app.helio.data.SessionKind.forSport(w.type).isNotEmpty()) ({
-                        app.helio.ui.components.SportProgressCard(w.type, allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax, kind)
+                        app.helio.ui.components.SportProgressCard(w.type, allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax, kind, { sctx.restOn(app.helio.data.Sessions.dateOf(it)) })
                     }) else null,
                 ) { detail = null }
             } ?: Text("No activity selected.", style = body(14.sp))
@@ -276,7 +278,7 @@ fun HomeScreen(
                                     StrainDetailTab(days, selected, goal, dayWorkouts, vo2.hrMax) { openWorkout = it; detail = Detail.Workout }
                                     listOf(app.helio.data.WorkoutType.MuayThai, app.helio.data.WorkoutType.Tennis).forEach { sport ->
                                         if (allWorkouts.any { it.type == sport }) {
-                                            app.helio.ui.components.SportProgressCard(sport, allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax)
+                                            app.helio.ui.components.SportProgressCard(sport, allWorkouts, { app.helio.data.Workouts.kindOf(it, kinds) }, vo2.hrMax, null, { sctx.restOn(app.helio.data.Sessions.dateOf(it)) })
                                         }
                                     }
                                 }

@@ -201,7 +201,7 @@ class MainActivity : ComponentActivity() {
             if (m == 2) activeWorkout?.let { a ->
                 app.helio.ui.screens.RoundsScreen(
                     live = live, active = a,
-                    hrMax = app.helio.logic.Vo2Max.hrMax(profile, days, java.time.LocalDate.now()).first,
+                    hrMax = app.helio.data.Sessions.normalize(days, workouts, profile).second.hrMax,
                     topHeight = if (fold == FoldMode.Tabletop) hingeTopPx.value?.let { with(density) { it.toDp() } } else null,
                     onClose = { forceRounds = false },
                     onEnd = { endWorkout(); forceRounds = false },
@@ -232,7 +232,7 @@ class MainActivity : ComponentActivity() {
                 onDeleteWorkout = { app.helio.data.Workouts.delete(this@MainActivity, it) },
                 onSimulateTest = {
                     val today = java.time.LocalDate.now()
-                    val hrMax = app.helio.logic.Vo2Max.hrMax(profile, days, today).first
+                    val hrMax = app.helio.data.Sessions.normalize(days, workouts, profile).second.hrMax
                     Repository.addTest(this@MainActivity, app.helio.logic.RunTest.simulate(hrMax, today.toEpochDay()))
                 },
                 onOpenLive = { forceLive = true },

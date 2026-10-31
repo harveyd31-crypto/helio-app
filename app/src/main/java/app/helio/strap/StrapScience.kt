@@ -77,6 +77,8 @@ object StrapScience {
         // Days before the changed ones keep last time's summary; yesterday and today are always fresh.
         val freshFrom = minOf(from ?: today, today.minusDays(1))
         val now = Instant.now()
+        // The max heart rate you actually reach (last 90 days) beats the age formula when it's higher.
+        val observedMax = store.topHr(now.minusSeconds(90L * 86_400).toEpochMilli())?.takeIf { it in 120.0..225.0 }
 
         return (0 until count).map { k ->
             val day = first.plusDays(k.toLong())
@@ -121,7 +123,7 @@ object StrapScience {
             val strainCard = sum.strain.shown
             val recovery = sum.recovery.shown?.value
             // Helio's day strain counts all waking effort (WHOOP-style); Ridge's training load stays in the text.
-            val hrMax = profile.age?.let { 208 - 0.7 * it } ?: 190.0
+            val hrMax = listOfNotNull(profile.age?.let { 208 - 0.7 * it }, observedMax).maxOrNull() ?: 190.0
             val sleepSpans = series.sleep.map { it.start.toEpochMilli() to it.end.toEpochMilli() }
             val strain = if (hr.size > 60) Strain.day(hr, rest ?: 60.0, hrMax, sleepSpans) else strainCard?.value
             val zonesMin = strainCard?.zoneMinutes

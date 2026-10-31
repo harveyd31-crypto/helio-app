@@ -57,9 +57,11 @@ object WidgetStore {
     )
 
     /** The last day of [days] plus its week, as the widget draws them. */
-    fun saveDays(ctx: Context, days: List<DaySummary>) {
+    fun saveDays(ctx: Context, raw: List<DaySummary>) {
+        val mine = app.helio.data.Workouts.all.value
+        val (days, sctx) = app.helio.data.Sessions.normalize(raw, mine, app.helio.data.Repository.profile.value)
         val d = days.lastOrNull() ?: return
-        val g = WeeklyGoal.compute(days, d.date, app.helio.data.Workouts.strainByDay(app.helio.data.Workouts.all.value, app.helio.data.Repository.profile.value))
+        val g = WeeklyGoal.compute(days, d.date, app.helio.data.Sessions.strainByDay(mine, sctx))
         val hm = DateTimeFormatter.ofPattern("HH:mm")
         val o = JSONObject().apply {
             put("week", JSONObject().apply {
@@ -70,7 +72,11 @@ object WidgetStore {
             put("target", Strain.target(d.recovery))
             d.recovery?.let { put("rec", it) }
             (d.extras?.deviceSleepScore ?: d.sleepPerformance)?.let { put("sleep", it) }
-            d.activities.lastOrNull()?.let { put("act", "${it.name} ${String.format("%.1f", it.strain)}") }
+            // The day's latest session, from the strap or recorded in Helio.
+            val inApp = mine.filter { app.helio.data.Sessions.dateOf(it.start) == d.date }
+                .map { Triple(it.start, it.type.label, Strain.fromHeartRate(it.hr, sctx.restOn(d.date), sctx.hrMax)) }
+            (d.activities.map { Triple(it.startMs, it.name, it.strain) } + inApp).maxByOrNull { it.first }
+                ?.let { (_, name, st) -> put("act", "$name ${String.format("%.1f", st)}") }
             d.sleep?.let { s ->
                 put("asleep", s.minutesAsleep)
                 put("bedWake", "${s.bed.format(hm)}–${s.wake.format(hm)}")

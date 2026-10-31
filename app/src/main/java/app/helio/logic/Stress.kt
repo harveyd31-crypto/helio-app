@@ -37,6 +37,13 @@ object Stress {
  * V1 approximation until Pulse's strain engine is ported.
  */
 object Strain {
+    /**
+     * Session scale: 21·(1 − e^(−TRIMP/165)). Calibrated on David's 31 Oct Muay Thai (moderate to
+     * hard, 1h43: ~15 min zone 5, ~27 zone 4, ~41 zone 3), which now lands at 13–14 instead of 16.3;
+     * an easy 45 min is about 3–4, a brutal two hours about 17–18.
+     */
+    const val SESSION_K = 165.0
+
     fun fromHeartRate(
         samples: List<Pair<Long, Int>>,
         restingHr: Double,
@@ -49,7 +56,7 @@ object Strain {
             val hrr = ((samples[i].second - restingHr) / (maxHr - restingHr)).coerceIn(0.0, 1.0)
             trimp += dtMin * hrr * 0.64 * exp(1.92 * hrr)
         }
-        return 21.0 * (1.0 - exp(-trimp / 120.0))
+        return 21.0 * (1.0 - exp(-trimp / SESSION_K))
     }
 
     /**

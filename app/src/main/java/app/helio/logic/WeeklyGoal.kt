@@ -11,15 +11,16 @@ import kotlin.math.roundToInt
  * Weekly training goal: counts exercise only (each session's strain: strap workouts and the
  * activities started in Helio), so a week of driving and walking doesn't fill it.
  *
- * Set from the four weeks before this Monday (your usual weekly training), never under two solid
- * sessions' worth, nudged by the last seven
+ * Set from the four weeks before this Monday (your usual weekly training), never under three solid
+ * sessions' worth (40), nudged by the last seven
  * days of recovery: well recovered → up to +10 %, run down → down to −30 %. The ring's full circle is
  * 1.25 × the goal so going over the goal still shows. Pace = where you would be by today if you
  * spread the goal evenly over the week.
  */
 object WeeklyGoal {
     private const val DEFAULT_WEEKLY = 42.0
-    private const val MIN_GOAL = 28.0
+    /** About three solid sessions: one session is about a third of the week. */
+    private const val MIN_GOAL = 40.0
 
     /** A day's training: its sessions' strain, plus any sessions recorded in Helio ([extra]). */
     fun training(d: DaySummary, extra: Map<LocalDate, Double>): Double =

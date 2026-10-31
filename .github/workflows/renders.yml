@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          gradle :app:testDebugUnitTest --tests app.helio.RenderTest --continue 2>&1 | tee render.log
+          gradle :app:testDebugUnitTest --continue 2>&1 | tee render.log
 
       - name: Publish renders (and any errors) to the renders branch
         if: always()

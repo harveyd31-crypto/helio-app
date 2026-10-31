@@ -71,11 +71,11 @@ fun KindBadge(k: SessionKind, onChange: () -> Unit) {
 
 /** Progress by month or quarter for one sport, filterable by kind of session. */
 @Composable
-fun SportProgressCard(sport: WorkoutType, all: List<Workout>, kindOf: (Workout) -> SessionKind?, hrMax: Double, initialKind: SessionKind? = null) {
+fun SportProgressCard(sport: WorkoutType, all: List<Workout>, kindOf: (Workout) -> SessionKind?, hrMax: Double, initialKind: SessionKind? = null, restOn: (Long) -> Double = { 60.0 }) {
     var kind by remember(initialKind) { mutableStateOf(initialKind) }
     var period by remember { mutableStateOf(SportProgress.Period.Month) }
     val specs = SportProgress.specsFor(sport)
-    val b = remember(all, kind, period, hrMax, sport) { SportProgress.buckets(all, sport, kind, kindOf, period, SportProgress.measureFor(sport, hrMax)) }
+    val b = remember(all, kind, period, hrMax, sport) { SportProgress.buckets(all, sport, kind, kindOf, period, SportProgress.measureFor(sport, hrMax, restOn)) }
 
     Column(Modifier.fillMaxWidth().card().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

@@ -391,6 +391,11 @@ class LocalStore(context: Context) : SQLiteOpenHelper(context, "helio_strap.db",
         "SELECT ts, value FROM samples WHERE metric = ? AND ts >= ? AND ts <= ? ORDER BY ts", arrayOf(metric, from.toString(), to.toString()),
     ).use { c -> buildList { while (c.moveToNext()) add(c.getLong(0) to c.getDouble(1).toInt()) } }
 
+    /** The third-highest per-minute heart rate since [since] (epoch ms): the max you actually reach, without one spike. */
+    fun topHr(since: Long): Double? = readableDatabase.rawQuery(
+        "SELECT value FROM samples WHERE metric = 'hr' AND ts >= ? AND value < 226 ORDER BY value DESC LIMIT 3", arrayOf(since.toString()),
+    ).use { c -> var v: Double? = null; var n = 0; while (c.moveToNext()) { v = c.getDouble(0); n++ }; if (n == 3) v else null }
+
     /** True when the strap has never delivered anything here: a restore cannot clash with own data. */
     fun isEmpty(): Boolean = listOf("samples", "sleep_sessions", "workouts", "daily_totals", "restored_totals").all { t ->
         readableDatabase.rawQuery("SELECT 1 FROM $t LIMIT 1", null).use { !it.moveToFirst() }

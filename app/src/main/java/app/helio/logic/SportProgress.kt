@@ -50,7 +50,7 @@ object SportProgress {
         Spec("strain", "STRAIN", "average per session", null) { String.format("%.1f", it) },
     )
 
-    fun muayThaiMeasure(hrMax: Double): (List<Workout>) -> Map<String, Double?> = { ws ->
+    fun muayThaiMeasure(hrMax: Double, restOn: (Long) -> Double = { 60.0 }): (List<Workout>) -> Map<String, Double?> = { ws ->
         val ra = ws.mapNotNull { RoundAnalysis.analyse(it, hrMax) }
         val red = 0.9 * hrMax
         mapOf(
@@ -61,7 +61,7 @@ object SportProgress {
                 sec / 60.0
             }.avgOrNull(),
             "fade" to ra.mapNotNull { it.fadePct?.toDouble() }.avgOrNull(),
-            "strain" to ws.map { Strain.fromHeartRate(it.hr, 60.0, hrMax) }.avgOrNull(),
+            "strain" to ws.map { Strain.fromHeartRate(it.hr, restOn(it.start), hrMax) }.avgOrNull(),
         )
     }
 
@@ -74,17 +74,17 @@ object SportProgress {
         Spec("strain", "STRAIN", "average per session", null) { String.format("%.1f", it) },
     )
 
-    fun tennisMeasure(hrMax: Double): (List<Workout>) -> Map<String, Double?> = { ws ->
+    fun tennisMeasure(hrMax: Double, restOn: (Long) -> Double = { 60.0 }): (List<Workout>) -> Map<String, Double?> = { ws ->
         val ta = ws.mapNotNull { TennisAnalysis.analyse(it, hrMax) }
         mapOf(
             "rec" to ta.mapNotNull { it.recovery30?.toDouble() }.avgOrNull(),
             "eff" to ta.map { it.perHour }.avgOrNull(),
             "match" to ta.map { it.matchPct.toDouble() }.avgOrNull(),
             "hold" to ta.mapNotNull { it.holdPct?.toDouble() }.avgOrNull(),
-            "strain" to ws.map { Strain.fromHeartRate(it.hr, 60.0, hrMax) }.avgOrNull(),
+            "strain" to ws.map { Strain.fromHeartRate(it.hr, restOn(it.start), hrMax) }.avgOrNull(),
         )
     }
 
     fun specsFor(t: WorkoutType) = when (t) { WorkoutType.MuayThai -> muayThaiSpecs; WorkoutType.Tennis -> tennisSpecs; else -> emptyList() }
-    fun measureFor(t: WorkoutType, hrMax: Double) = when (t) { WorkoutType.Tennis -> tennisMeasure(hrMax); else -> muayThaiMeasure(hrMax) }
+    fun measureFor(t: WorkoutType, hrMax: Double, restOn: (Long) -> Double = { 60.0 }) = when (t) { WorkoutType.Tennis -> tennisMeasure(hrMax, restOn); else -> muayThaiMeasure(hrMax, restOn) }
 }
